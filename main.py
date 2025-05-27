@@ -1,21 +1,11 @@
 import random
 
-def getnewQA():
-    with open('questions.txt', 'r') as file:
-        # Read all lines and remove empty ones
-        lines = [line.strip() for line in file.readlines() if line.strip()]
-        # Pick a random line
-        qa_line = random.choice(lines)
-        # Split by semicolon into question and answer
-        question, answer = qa_line.split(';')
-        return question.strip(), answer.strip()
-
 class Player:
     def __init__(self, id, name, is_guesser=False):
         self.id = id
         self.name = name
         self.points = 0
-        self.role = "guesser" if is_guesser else "liar"  # can be "guesser", "truth-teller", or "liar"
+        self.role = "guesser" if is_guesser else "liar"
         self.has_been_guessed = False
         self.temp_points = 0
         # Stats tracking
@@ -46,9 +36,6 @@ class Player:
     def get_role(self):
         return self.role
 
-    def get_information(self, info):
-        print(f"{self.name} has gotten information: {info} and is a {self.role}")
-
     def is_guesser(self):
         return self.role == "guesser"
 
@@ -62,273 +49,324 @@ class Player:
         self.has_been_guessed = False
         self.temp_points = 0
 
-    def prompt_lies(self, players):
-        while True:
-            # Count unguessed players at the start of each turn
-            unguessed_players = [p for p in players if not p.has_been_guessed and p != self]
-            remaining_count = len(unguessed_players)
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'points': self.points,
+            'role': self.role,
+            'has_been_guessed': self.has_been_guessed
+        }
+
+class GameRoom:
+    def __init__(self, room_code):
+        self.room_code = room_code
+        self.players = {}
+        self.used_questions = set()  # Track used questions
+        self.game_state = {
+            'status': 'waiting',  # waiting, playing, finished
+            'current_round': 0,
+            'current_guesser': None,
+            'truth_teller': None,
+            'question': None,
+            'answer': None,
+            'guessed_players': [],
+            'scores': {}
+        }
+    
+    def add_player(self, player):
+        """Add a player to the room"""
+        self.players[player.id] = player
+        self.game_state['scores'][player.id] = 0
+    
+    def remove_player(self, player_id):
+        """Remove a player from the room"""
+        if player_id in self.players:
+            del self.players[player_id]
+            del self.game_state['scores'][player_id]
+    
+    def start_game(self):
+        """Initialize and start the game"""
+        if len(self.players) >= 3:
+            self.game_state['status'] = 'playing'
+            # Make the last player the initial guesser so first player becomes guesser after swap
+            player_ids = list(self.players.keys())
+            self.players[player_ids[-1]].role = "guesser"
             
-            # If only one player remains, it must be the truth-teller
-            if remaining_count == 1 and unguessed_players[0].is_truth_teller():
-                print(f"\nOnly one player remains - it must be the truth-teller ({unguessed_players[0].get_name()})!")
-                print("You found all the liars! You get an extra point as bonus!")
-                self.add_points(self.temp_points + 1)
-                self.correct_guesses += 1
-                self.total_guesses += 1
-                self.temp_points = 0
-                break
+            # Set initial truth-teller
+            non_guessers = [p for p in self.players.values() if not p.is_guesser()]
+            truth_teller = random.choice(non_guessers)
+            truth_teller.role = "truth-teller"
             
-            print(f"\nThere are {remaining_count} unguessed players remaining.")
-            guess = input(f"{self.name} please guess a liar or end your turn (type 'end' to end turn): ").strip()
-            
-            if guess.lower() == 'end':
-                if remaining_count == 1 and unguessed_players[0].is_truth_teller():
-                    print(f"You found all the liars! The last player {unguessed_players[0].get_name()} was telling the truth!")
-                    self.add_points(self.temp_points)
-                    self.correct_guesses += 1
-                else:
-                    print(f"Turn ended. You get {self.temp_points} points from your correct guesses.")
-                    self.add_points(self.temp_points)
-                self.temp_points = 0
-                break
-                
-            # Find the guessed player
-            guessed_player = None
-            for player in players:
-                if player.get_name().lower() == guess.lower():
-                    guessed_player = player
-                    break
-                    
-            if not guessed_player:
-                print("Invalid player name. Try again.")
-                continue
-                
-            if guessed_player == self:
-                print("You cannot guess yourself! Try again.")
-                continue
-                
-            if guessed_player.has_been_guessed:
-                print("This player has already been guessed. Try again.")
-                continue
-                
-            guessed_player.has_been_guessed = True
-            
-            if guessed_player.is_truth_teller():
-                # Guessed a truth-teller - lose all temp points
-                print(f"{guessed_player.get_name()} was telling the truth! You lose your points.")
-                # Give truth-teller a point if they're not the last one
-                if remaining_count > 1:
-                    print(f"{guessed_player.get_name()} gets a point for being caught!")
-                    guessed_player.add_points(1)
-                self.temp_points = 0
-                self.total_guesses += 1
-                break
-            else:
-                # Guessed a liar - accumulate a point
-                print(f"Correct! {guessed_player.get_name()} was lying!")
-                self.temp_points += 1
-                self.correct_guesses += 1
-                self.total_guesses += 1
-                guessed_player.times_caught_as_liar += 1
+            self.start_new_round()
+            return True
+        return False
+    
+    def start_new_round(self):
+        """Initialize a new round"""
+        self.game_state['current_round'] += 1
         
-        # After turn ends, give points to any unguessed liars
-        for player in players:
-            if not player.has_been_guessed and player.is_liar() and player != self:
-                print(f"{player.get_name()} was an unguessed liar and gets a point!")
+        # Get new question and answer for the round
+        question, answer = self.get_new_qa()
+        self.game_state['question'] = question
+        self.game_state['answer'] = answer
+        
+        # Reset all players' round state
+        for player in self.players.values():
+            player.reset_round()
+        
+        # Swap roles
+        self.swap_round()
+        
+        # Update game state
+        self.game_state['guessed_players'] = []
+        current_guesser = next(p for p in self.players.values() if p.is_guesser())
+        self.game_state['current_guesser'] = current_guesser.id
+        truth_teller = next(p for p in self.players.values() if p.is_truth_teller())
+        self.game_state['truth_teller'] = truth_teller.id
+    
+    def swap_round(self):
+        """Swap roles for the next round"""
+        player_ids = list(self.players.keys())
+        # Find current guesser and their index
+        current_guesser = next(p for p in self.players.values() if p.is_guesser())
+        current_index = player_ids.index(current_guesser.id)
+        
+        # Reset current guesser to liar
+        current_guesser.role = "liar"
+        
+        # Set next player as guesser
+        next_index = (current_index + 1) % len(player_ids)
+        next_guesser = self.players[player_ids[next_index]]
+        next_guesser.role = "guesser"
+        next_guesser.times_as_guesser += 1
+        
+        # Reset all non-guessers to liars
+        for player in self.players.values():
+            if not player.is_guesser():
+                player.role = "liar"
+                player.rounds_played += 1
+        
+        # Pick random non-guesser to be truth-teller
+        non_guessers = [p for p in self.players.values() if not p.is_guesser()]
+        truth_teller = random.choice(non_guessers)
+        truth_teller.role = "truth-teller"
+        truth_teller.times_as_truth_teller += 1
+        
+        # Update liar count for remaining players
+        for player in non_guessers:
+            if player.is_liar():
+                player.times_as_liar += 1
+    
+    def process_guess(self, guesser_id, guessed_player_id):
+        """Process a guess from the guesser"""
+        if self.game_state['status'] != 'playing':
+            return {'error': 'Game is not in progress'}
+            
+        guesser = self.players[guesser_id]
+        guessed_player = self.players[guessed_player_id]
+        
+        if not guesser.is_guesser():
+            return {'error': 'Not your turn to guess'}
+            
+        if guessed_player.has_been_guessed:
+            return {'error': 'Player has already been guessed'}
+            
+        if guesser_id == guessed_player_id:
+            return {'error': 'Cannot guess yourself'}
+        
+        # Mark player as guessed
+        guessed_player.has_been_guessed = True
+        self.game_state['guessed_players'].append(guessed_player_id)
+        
+        # Count remaining unguessed players
+        unguessed_players = [p for p in self.players.values() 
+                           if not p.has_been_guessed and p.id != guesser_id]
+        remaining_count = len(unguessed_players)
+        
+        result = {
+            'guessed_player': guessed_player.name,
+            'was_truth_teller': guessed_player.is_truth_teller(),
+            'remaining_players': remaining_count,
+            'points_earned': 0,
+            'round_ended': False
+        }
+        
+        if guessed_player.is_truth_teller():
+            # Guessed truth-teller - lose points
+            guesser.temp_points = 0
+            guesser.total_guesses += 1
+            # Give truth-teller a point if they're not the last one
+            if remaining_count > 1:
+                guessed_player.add_points(1)
+                result['truth_teller_point'] = True
+            result['round_ended'] = True
+            
+            # Start new round since guessing truth-teller ends the round
+            self.end_round()
+        else:
+            # Guessed a liar correctly
+            guesser.temp_points += 1
+            guesser.correct_guesses += 1
+            guesser.total_guesses += 1
+            guessed_player.times_caught_as_liar += 1
+            result['points_earned'] = 1
+            
+            # Check if only truth-teller remains
+            if remaining_count == 1 and unguessed_players[0].is_truth_teller():
+                guesser.add_points(guesser.temp_points + 1)  # Bonus point
+                result['points_earned'] = guesser.temp_points + 1
+                result['round_ended'] = True
+                result['found_all_liars'] = True
+                # Start new round since all liars found
+                self.end_round()
+        
+        # Update scores in game state
+        self.update_scores()
+        
+        return result
+    
+    def end_round(self):
+        """End the current round and handle point distribution"""
+        guesser = next(p for p in self.players.values() if p.is_guesser())
+        
+        # Add accumulated points to guesser
+        guesser.add_points(guesser.temp_points)
+        
+        # Give points to unguessed liars
+        for player in self.players.values():
+            if not player.has_been_guessed and player.is_liar() and player.id != guesser.id:
                 player.add_points(1)
                 player.times_survived_as_liar += 1
-
-def SwapRound():
-    global playerlist
-    # Find current guesser and their index
-    current_guesser_index = 0
-    for i, player in enumerate(playerlist):
+        
+        # Update scores and check if game is over
+        self.update_scores()
+        if any(p.get_points() >= 20 for p in self.players.values()):
+            self.game_state['status'] = 'finished'
+            return self.get_final_results()
+        
+        # Start new round
+        self.start_new_round()
+        return None
+    
+    def get_new_qa(self):
+        """Get a new question-answer pair, ensuring no repeats in the same game"""
+        with open('questions.txt', 'r') as file:
+            # Read all lines and remove empty ones
+            lines = [line.strip() for line in file.readlines() if line.strip()]
+            
+            # Filter out previously used questions
+            available_lines = [line for line in lines if line not in self.used_questions]
+            
+            # If we've used all questions, reset the used questions set
+            if not available_lines:
+                self.used_questions.clear()
+                available_lines = lines
+            
+            # Pick a random line
+            qa_line = random.choice(available_lines)
+            self.used_questions.add(qa_line)  # Mark as used
+            
+            # Split by semicolon into question and answer
+            question, answer = qa_line.split(';')
+            return question.strip(), answer.strip()
+    
+    def update_scores(self):
+        """Update scores in game state"""
+        for player_id, player in self.players.items():
+            self.game_state['scores'][player_id] = player.get_points()
+    
+    def get_final_results(self):
+        """Get final game results with rankings and stats"""
+        sorted_players = sorted(self.players.values(), 
+                              key=lambda p: (p.points, 
+                                           p.correct_guesses / p.total_guesses if p.total_guesses > 0 else 0,
+                                           p.times_survived_as_liar / p.times_as_liar if p.times_as_liar > 0 else 0,
+                                           random.random()),
+                              reverse=True)
+        
+        results = {
+            'winner': sorted_players[0].name,
+            'rankings': [],
+            'stats': {},
+            'awards': {}
+        }
+        
+        # Add rankings with stats
+        for i, player in enumerate(sorted_players, 1):
+            accuracy = (player.correct_guesses / player.total_guesses * 100) if player.total_guesses > 0 else 0
+            survival = (player.times_survived_as_liar / player.times_as_liar * 100) if player.times_as_liar > 0 else 0
+            
+            results['rankings'].append({
+                'rank': i,
+                'name': player.name,
+                'points': player.points,
+                'accuracy': accuracy,
+                'survival_rate': survival
+            })
+            
+            # Add detailed stats
+            results['stats'][player.id] = {
+                'rounds_played': player.rounds_played,
+                'times_as_guesser': player.times_as_guesser,
+                'times_as_truth_teller': player.times_as_truth_teller,
+                'times_as_liar': player.times_as_liar,
+                'correct_guesses': player.correct_guesses,
+                'total_guesses': player.total_guesses,
+                'times_caught': player.times_caught_as_liar,
+                'times_survived': player.times_survived_as_liar
+            }
+        
+        # Add awards
+        best_guesser = max(self.players.values(), 
+                          key=lambda p: p.correct_guesses if p.total_guesses > 0 else -1)
+        best_survivor = max(self.players.values(), 
+                          key=lambda p: p.times_survived_as_liar if p.times_as_liar > 0 else -1)
+        
+        results['awards'] = {
+            'best_guesser': {
+                'name': best_guesser.name,
+                'correct_guesses': best_guesser.correct_guesses
+            },
+            'best_liar': {
+                'name': best_survivor.name,
+                'successful_escapes': best_survivor.times_survived_as_liar
+            }
+        }
+        
+        return results
+    
+    def get_player_state(self, player_id):
+        """Get game state from a specific player's perspective"""
+        state = self.game_state.copy()
+        player = self.players[player_id]
+        
+        # Remove question and answer from state first
+        if 'answer' in state:
+            del state['answer']
+        if 'question' in state:
+            del state['question']
+        
+        # Only guesser sees the question
         if player.is_guesser():
-            current_guesser_index = i
-            player.role = "liar"  # Reset to liar by default
-            break
-    
-    # Set next player as guesser
-    next_guesser_index = (current_guesser_index + 1) % len(playerlist)
-    playerlist[next_guesser_index].role = "guesser"
-    playerlist[next_guesser_index].times_as_guesser += 1
-    
-    # Reset all non-guessers to liars
-    for player in playerlist:
+            state['question'] = self.game_state['question']
+        
+        # Only non-guessers see the answer
         if not player.is_guesser():
-            player.role = "liar"
-            player.rounds_played += 1
-    
-    # Pick random non-guesser to be truth-teller
-    non_guessers = [p for p in playerlist if not p.is_guesser()]
-    truth_teller = random.choice(non_guessers)
-    truth_teller.role = "truth-teller"
-    truth_teller.times_as_truth_teller += 1
-    
-    # Update liar count for remaining players
-    for player in non_guessers:
-        if player.is_liar():
-            player.times_as_liar += 1
-    
-    print(f"\nNew round! {playerlist[next_guesser_index].get_name()} is the guesser.")
-
-player1 = Player(1, "John", False)
-player2 = Player(2, "Jane", False)
-player3 = Player(3, "Jim", False)
-player4 = Player(4, "Jill", False)
-player5 = Player(5, "Jack", True)  # Start with player5 as guesser so player1 will be first after SwapRound
-playerlist = [player1, player2, player3, player4, player5]
-
-# Set initial truth-teller
-non_guessers = [p for p in playerlist if not p.is_guesser()]
-truth_teller = random.choice(non_guessers)
-truth_teller.role = "truth-teller"
-
-print(f"Setting up the game...")
-SwapRound()  # This will make player1 the first guesser
-
-print(f"Game starting! {player1.get_name()} is the first guesser.")
-
-def get_player_rank_score(player):
-    # Calculate ranking score based on tiebreakers
-    accuracy = (player.correct_guesses / player.total_guesses * 100) if player.total_guesses > 0 else 0
-    survival_rate = (player.times_survived_as_liar / player.times_as_liar * 100) if player.times_as_liar > 0 else 0
-    
-    # Combine scores with weights
-    return (
-        player.points,  # Primary sort by points
-        accuracy,       # First tiebreaker: guessing accuracy
-        survival_rate,  # Second tiebreaker: survival rate as liar
-        random.random() # Final tiebreaker: random chance (for fun!)
-    )
-
-def get_random_tiebreaker_joke():
-    jokes = [
-        "Flipped a virtual coin, but it landed on its edge... had to flip again!",
-        "Asked a quantum computer, but it said 'yes' AND 'no'...",
-        "Rock, Paper, Scissors... but they all picked Rock!",
-        "Consulted the ancient art of 'Eeny, Meeny, Miny, Moe'",
-        "Drew straws, but they were all the same length!",
-        "Asked ChatGPT, but it wrote a poem instead...",
-        "Rolled a D20, but it bounced under the fridge!",
-    ]
-    return random.choice(jokes)
-
-def end_game():
-    print("\n" + "="*50)
-    print("🎮 GAME OVER! Final Statistics 📊")
-    print("="*50)
-    
-    # Sort players by our ranking system
-    sorted_players = sorted(playerlist, key=get_player_rank_score, reverse=True)
-    
-    # Find players tied for first
-    max_points = sorted_players[0].points
-    tied_players = [p for p in sorted_players if p.points == max_points]
-    
-    # Announce winner(s) with tiebreaker explanation
-    print("\n👑 WINNER ANNOUNCEMENT:")
-    print("-"*20)
-    if len(tied_players) > 1:
-        print(f"We had a {len(tied_players)}-way tie at {max_points} points!")
-        print("After considering tiebreakers...")
-        print(f"1. Guessing Accuracy")
-        print(f"2. Survival Rate as Liar")
-        print(f"3. {get_random_tiebreaker_joke()}")
-        print(f"\n🏆 The WINNER is... {sorted_players[0].name}! 🎉")
-    else:
-        print(f"🏆 Congratulations to {sorted_players[0].name} with {max_points} points! 🎉")
-    
-    print("\n🏆 FINAL RANKINGS:")
-    print("-"*20)
-    for i, player in enumerate(sorted_players, 1):
-        accuracy = (player.correct_guesses / player.total_guesses * 100) if player.total_guesses > 0 else 0
-        survival = (player.times_survived_as_liar / player.times_as_liar * 100) if player.times_as_liar > 0 else 0
-        print(f"{i}. {player.name}: {player.points} points")
-        print(f"   Accuracy: {accuracy:.1f}% | Survival Rate: {survival:.1f}%")
-    
-    print("\n📊 PLAYER STATISTICS:")
-    print("-"*20)
-    for player in playerlist:
-        print(f"\n👤 {player.name}'s Stats:")
-        print(f"  • Rounds Played: {player.rounds_played}")
-        print(f"  • Times as Guesser: {player.times_as_guesser}")
-        print(f"  • Times as Truth-teller: {player.times_as_truth_teller}")
-        print(f"  • Times as Liar: {player.times_as_liar}")
+            state['answer'] = self.game_state['answer']
         
-        # Calculate percentages
-        guess_accuracy = (player.correct_guesses / player.total_guesses * 100) if player.total_guesses > 0 else 0
-        survival_rate = (player.times_survived_as_liar / player.times_as_liar * 100) if player.times_as_liar > 0 else 0
-        caught_rate = (player.times_caught_as_liar / player.times_as_liar * 100) if player.times_as_liar > 0 else 0
+        # Everyone sees basic player info
+        state['players'] = {
+            pid: {
+                'id': p.id,
+                'name': p.name,
+                'points': p.points,
+                'has_been_guessed': p.has_been_guessed
+            } for pid, p in self.players.items()
+        }
         
-        print(f"  • Guessing Accuracy: {guess_accuracy:.1f}%")
-        print(f"  • Liar Survival Rate: {survival_rate:.1f}%")
-        print(f"  • Times Caught Rate: {caught_rate:.1f}%")
+        # Add the player's own role
+        state['players'][player_id]['role'] = player.role
+        
+        return state 
     
-    print("\n🎯 GAME SUMMARY:")
-    print("-"*20)
-    total_rounds = max(p.rounds_played for p in playerlist)
-    total_correct_guesses = sum(p.correct_guesses for p in playerlist)
-    total_guesses = sum(p.total_guesses for p in playerlist)
-    overall_accuracy = (total_correct_guesses / total_guesses * 100) if total_guesses > 0 else 0
-    
-    print(f"Total Rounds Played: {total_rounds}")
-    print(f"Total Correct Guesses: {total_correct_guesses}")
-    print(f"Overall Guessing Accuracy: {overall_accuracy:.1f}%")
-    
-    # Find some interesting superlatives
-    best_guesser = max(playerlist, key=lambda p: p.correct_guesses if p.total_guesses > 0 else -1)
-    best_survivor = max(playerlist, key=lambda p: p.times_survived_as_liar if p.times_as_liar > 0 else -1)
-    
-    print("\n🏅 AWARDS:")
-    print("-"*20)
-    print(f"Best Guesser: {best_guesser.name} ({best_guesser.correct_guesses} correct guesses)")
-    print(f"Best Liar: {best_survivor.name} ({best_survivor.times_survived_as_liar} successful escapes)")
-    
-    print("\n" + "="*50)
-
-def is_running():
-    for player in playerlist:
-        if player.get_points() >= 5:  # Changed to >= to ensure we don't go past the winning condition
-            return False
-    return True
-
-while(is_running()):
-    question, answer = getnewQA()
-    SwapRound()
-    
-    # Reset all players' round state
-    for player in playerlist:
-        player.reset_round()
-    
-    # Give information to players
-    for player in playerlist:
-        if player.is_guesser():
-            player.get_information(question)
-        else:
-            player.get_information(answer)
-    print("everyone has gotten information")
-    
-    # Let the guesser take their turn
-    for player in playerlist:
-        if player.is_guesser():
-            player.prompt_lies(playerlist)
-            break
-    
-    # Display current scores
-    print("\nCurrent scores:")
-    for player in playerlist:
-        print(f"{player.get_name()}: {player.get_points()} points")
-    print("\n")
-
-# Call end_game when the game is finished
-end_game()
-
-    
-
-    
-
-
-
-
-   
