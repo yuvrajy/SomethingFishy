@@ -88,11 +88,23 @@ button:hover {
     width: auto;
     min-width: 100px;
     background-color: #4caf50;
-    transition: background-color 0.3s ease;
+    transition: all 0.3s ease;
 }
 
 .player-item button:hover {
     background-color: #388e3c;
+}
+
+.player-item.correct-guess {
+    background-color: #e8f5e9;
+    border-color: #4caf50;
+    transition: all 0.3s ease;
+}
+
+.player-item.incorrect-guess {
+    background-color: #e3f2fd;
+    border-color: #2196f3;
+    transition: all 0.3s ease;
 }
 
 #game-messages {
@@ -251,4 +263,33 @@ button:hover {
     padding: 3px;
     background-color: rgba(255, 255, 255, 0.5);
     border-radius: 4px;
+}
+
+.hint-section {
+    background-color: #fff3e0;
+    padding: 15px;
+    border-radius: 6px;
+    margin: 10px 0;
+    color: #e65100;
+    font-size: 1.1em;
+    border-left: 4px solid #ff9800;
+}
+
+.skip-button {
+    background-color: #ff9800;
+    width: auto;
+    margin: 10px 0;
+}
+
+.skip-button:hover {
+    background-color: #f57c00;
+}
+
+@keyframes rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.rotating {
+    animation: rotate 1s linear;
 } 

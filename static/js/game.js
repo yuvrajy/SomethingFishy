@@ -164,39 +164,53 @@ function updateGameState(state) {
     if (!myPlayer) return;
 
     // Update role with simple description
-    document.getElementById('player-role').textContent = `Role: ${myPlayer.role}`;
-    
-    // Update question and answer based on role
-    const questionElem = document.getElementById('question');
-    const answerSection = document.getElementById('answer-section');
-    
-    // Update question visibility
+    const roleSection = document.getElementById('game-info');
+    roleSection.innerHTML = ''; // Clear existing content
+
+    // Add role
+    const roleElem = document.createElement('p');
+    roleElem.id = 'player-role';
+    roleElem.textContent = `Role: ${myPlayer.role}`;
+    roleSection.appendChild(roleElem);
+
+    // Add hint section under role
+    const hintSection = document.createElement('div');
+    hintSection.className = 'hint-section';
+    if (myPlayer.role === 'guesser') {
+        hintSection.textContent = "Try to figure out who's lying by asking questions and observing responses.";
+    } else if (myPlayer.role === 'truth-teller') {
+        hintSection.textContent = "You must tell the truth! Give the answer exactly as shown.";
+    } else if (myPlayer.role === 'liar') {
+        hintSection.textContent = "You're a liar! Make up a convincing false answer.";
+    }
+    roleSection.appendChild(hintSection);
+
+    // Update question and answer
+    const questionElem = document.createElement('p');
+    questionElem.id = 'question';
     if (state.question) {
         questionElem.textContent = `Question: ${state.question}`;
-        questionElem.parentElement.style.display = 'block';
-    } else {
-        questionElem.parentElement.style.display = 'none';
-    }
-    
-    if (myPlayer.role === 'guesser') {
-        answerSection.style.display = 'none';
-        // Only show this message when the game first starts or on role change
-        if (state.current_round === 1 || state.new_round) {
-            addGameMessage("You're the guesser! Try to figure out who's lying.", 'role');
-        }
-    } else {
-        answerSection.style.display = 'block';
-        document.getElementById('answer').textContent = `Answer: ${state.answer || ''}`;
-        // Only show these messages when the game first starts or on role change
-        if (state.current_round === 1 || state.new_round) {
-            if (myPlayer.role === 'truth-teller') {
-                addGameMessage("Remember: You must tell the truth! Give this answer exactly.", 'role');
-            } else if (myPlayer.role === 'liar') {
-                addGameMessage("Remember: You're a liar! Make up a false answer.", 'role');
-            }
+        roleSection.appendChild(questionElem);
+        
+        // Add skip question button for guesser
+        if (myPlayer.role === 'guesser') {
+            const skipButton = document.createElement('button');
+            skipButton.textContent = 'Skip Question';
+            skipButton.className = 'skip-button';
+            skipButton.onclick = () => {
+                socket.emit('skip_question', { room_code: roomCode });
+            };
+            roleSection.appendChild(skipButton);
         }
     }
-    
+
+    if (myPlayer.role !== 'guesser') {
+        const answerSection = document.createElement('p');
+        answerSection.id = 'answer-section';
+        answerSection.textContent = `Answer: ${state.answer || ''}`;
+        roleSection.appendChild(answerSection);
+    }
+
     // Update players list
     const playersList = document.getElementById('players-game-list');
     playersList.innerHTML = '';
@@ -224,22 +238,41 @@ function updateGameState(state) {
         
         if (myPlayer.role === 'guesser' && !player.has_been_guessed) {
             const guessButton = document.createElement('button');
-            guessButton.textContent = `Guess ${player.name}`;
+            guessButton.textContent = 'Liar!';
+            const playerId = player.id; // Store player.id in a closure
             guessButton.onclick = () => {
-                makeGuess(player.id);
+                const playerItem = guessButton.parentElement;
+                socket.emit('make_guess', {
+                    room_code: roomCode,
+                    guessed_player_id: playerId
+                });
+                // Disable the button immediately
+                guessButton.disabled = true;
             };
             playerItem.appendChild(guessButton);
         }
         
         playersList.appendChild(playerItem);
     });
-}
 
-function makeGuess(playerId) {
-    socket.emit('make_guess', {
-        room_code: roomCode,
-        guessed_player_id: playerId
+    // Add socket handler for skip question
+    socket.on('question_skipped', (data) => {
+        const questionElem = document.getElementById('question');
+        if (questionElem) {
+            questionElem.textContent = `Question: ${data.question}`;
+        }
+        if (data.answer) {
+            const answerElem = document.getElementById('answer-section');
+            if (answerElem) {
+                answerElem.textContent = `Answer: ${data.answer}`;
+            }
+        }
     });
+
+    // Only announce next guesser when it's a new round
+    if (state.new_round && state.next_guesser) {
+        addGameMessage(`The new guesser is: ${state.next_guesser}`, 'system');
+    }
 }
 
 // Handle guess results
@@ -247,17 +280,61 @@ socket.on('guess_result', (result) => {
     const message = document.createElement('div');
     message.className = 'message guess-result';
     
-    if (result.was_truth_teller) {
-        message.textContent = `${result.guessed_player} was the Truth-teller! Round Over!`;
-        addGameMessage('Game continues with new roles!', 'system');
-    } else {
-        message.textContent = `${result.guessed_player} was a Liar! +${result.points_earned} point${result.points_earned !== 1 ? 's' : ''}`;
-        if (result.found_all_liars) {
-            addGameMessage('You found all the liars! Bonus point awarded!', 'system');
+    // Find the guessed player's item and apply the appropriate color
+    const playerItems = document.querySelectorAll('.player-item');
+    playerItems.forEach(item => {
+        if (item.textContent.includes(result.guessed_player)) {
+            // Remove any existing guess classes
+            item.classList.remove('correct-guess', 'truth-teller-guess');
+            // Add appropriate class based on whether it was the truth-teller
+            if (result.was_truth_teller) {
+                item.classList.add('truth-teller-guess');
+                message.textContent = `${result.guessed_player} was the Truth-teller! Round Over!`;
+                // Disable all guess buttons
+                const buttons = document.querySelectorAll('.player-item button');
+                buttons.forEach(button => {
+                    button.disabled = true;
+                    button.style.display = 'none';
+                });
+            } else {
+                item.classList.add('correct-guess');
+                message.textContent = `${result.guessed_player} was a Liar! +${result.points_earned} point${result.points_earned !== 1 ? 's' : ''}`;
+                // If all liars found, announce it
+                if (result.found_all_liars) {
+                    const bonusMessage = document.createElement('div');
+                    bonusMessage.className = 'message system';
+                    bonusMessage.textContent = 'You found all the liars! Bonus point awarded!';
+                    document.getElementById('game-messages').appendChild(bonusMessage);
+                }
+            }
+            item.classList.add('guessed');
         }
-    }
+    });
     
     document.getElementById('game-messages').appendChild(message);
+});
+
+// Handle round ending notification
+socket.on('round_ending', () => {
+    // Add a temporary message about waiting for next round
+    const waitingMessage = document.createElement('div');
+    waitingMessage.className = 'message system';
+    waitingMessage.textContent = 'Waiting for next round...';
+    document.getElementById('game-messages').appendChild(waitingMessage);
+    
+    // Clear the message after 1 second
+    setTimeout(() => {
+        waitingMessage.remove();
+    }, 1000);
+});
+
+// Handle new round state updates
+socket.on('new_round', (state) => {
+    // Add next guesser announcement
+    addGameMessage(`The new guesser is: ${state.next_guesser}`, 'system');
+    
+    // Update the game state with the new round info
+    updateGameState(state);
 });
 
 // Game over
@@ -347,4 +424,23 @@ function getRankEmoji(rank) {
 // Play again
 document.getElementById('play-again').addEventListener('click', () => {
     window.location.reload();
-}); 
+});
+
+// Add CSS for the new color classes
+const style = document.createElement('style');
+style.textContent = `
+    .player-item.correct-guess {
+        background-color: #4CAF50;  /* Green for correct liar guess */
+        color: white;
+        transition: background-color 0.3s ease;
+    }
+    .player-item.truth-teller-guess {
+        background-color: #2196F3;  /* Blue for truth-teller */
+        color: white;
+        transition: background-color 0.3s ease;
+    }
+    .player-item.guessed {
+        opacity: 0.8;
+    }
+`;
+document.head.appendChild(style); 

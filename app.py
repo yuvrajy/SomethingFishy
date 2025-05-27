@@ -4,15 +4,19 @@ from flask_cors import CORS
 from main import Player, GameRoom
 import random
 import string
+from gevent import monkey, sleep
+monkey.patch_all()
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 app.config['SECRET_KEY'] = 'something_fishy_secret!'
 CORS(app, resources={r"/*": {"origins": "*"}})
 socketio = SocketIO(app, 
                    cors_allowed_origins="*",
-                   async_mode='threading',
+                   async_mode='gevent',
                    ping_timeout=60,
-                   ping_interval=25)
+                   ping_interval=25,
+                   logger=True,
+                   engineio_logger=True)
 
 # Store active game rooms
 game_rooms = {}
@@ -20,9 +24,12 @@ game_rooms = {}
 player_sessions = {}
 
 def generate_room_code():
-    """Generate a unique 6-character room code"""
+    """Generate a unique 4-letter room code, excluding confusing letters (O, I)"""
+    # Define allowed characters (uppercase letters excluding O and I)
+    allowed_chars = ''.join(c for c in string.ascii_uppercase if c not in 'OI')
+    
     while True:
-        code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+        code = ''.join(random.choices(allowed_chars, k=4))
         if code not in game_rooms:
             return code
 
@@ -186,29 +193,58 @@ def handle_guess(data):
         emit('error', {'message': result['error']})
         return
     
-    # Broadcast result to all players
+    # Broadcast result to all players first
     emit('guess_result', result, room=room_code)
     
-    # Send updated game states to all players
-    for player_id in game_room.players:
-        state = game_room.get_player_state(player_id)
-        state['player_id'] = player_id
-        state['current_round'] = game_room.game_state['current_round']
-        emit('game_state_update', state, room=get_player_sid(player_id, room_code))
-    
-    # Check if round ended
+    # If truth-teller was guessed or all liars found, handle round end
     if result.get('round_ended', False):
         if game_room.game_state['status'] == 'finished':
             # Game is over
             final_results = game_room.get_final_results()
             emit('game_over', final_results, room=room_code)
         else:
-            # New round started
+            # Wait for 1.5 seconds to let the animation complete
+            sleep(1.5)
+            
+            # Start new round
+            game_room.start_new_round()
+            
+            # Get the current guesser after the new round started
+            current_guesser = next(p for p in game_room.players.values() if p.is_guesser())
+            
+            # Send new round state to all players
             for player_id in game_room.players:
                 state = game_room.get_player_state(player_id)
                 state['player_id'] = player_id
                 state['current_round'] = game_room.game_state['current_round']
+                state['next_guesser'] = current_guesser.name
                 emit('new_round', state, room=get_player_sid(player_id, room_code))
+    else:
+        # Just update game state for all players
+        for player_id in game_room.players:
+            state = game_room.get_player_state(player_id)
+            state['player_id'] = player_id
+            state['current_round'] = game_room.game_state['current_round']
+            emit('game_state_update', state, room=get_player_sid(player_id, room_code))
+
+@socketio.on('skip_question')
+def handle_skip_question(data):
+    """Handle skipping to a new question"""
+    room_code = data.get('room_code')
+    if room_code not in game_rooms:
+        emit('error', {'message': 'Room not found'})
+        return
+    
+    game_room = game_rooms[room_code]
+    result = game_room.skip_question()
+    
+    # Send new question to all players
+    for player_id in game_room.players:
+        state = {
+            'question': result['question'],
+            'answer': result['answer'] if not game_room.players[player_id].is_guesser() else None
+        }
+        emit('question_skipped', state, room=get_player_sid(player_id, room_code))
 
 def get_player_sid(player_id, room_code):
     """Get socket ID for a player"""

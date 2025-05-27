@@ -196,13 +196,15 @@ class GameRoom:
             # Guessed truth-teller - lose points
             guesser.temp_points = 0
             guesser.total_guesses += 1
-            # Give truth-teller a point if they're not the last one
-            if remaining_count > 1:
+            # Give truth-teller a point if they're not the last one guessed
+            if remaining_count >= 0:  # Changed from >= 1 to >= 0 to include second-to-last
                 guessed_player.add_points(1)
                 result['truth_teller_point'] = True
             result['round_ended'] = True
             
             # Start new round since guessing truth-teller ends the round
+            next_guesser = self.get_next_guesser()
+            result['next_guesser'] = next_guesser.name
             self.end_round()
         else:
             # Guessed a liar correctly
@@ -369,4 +371,22 @@ class GameRoom:
         state['players'][player_id]['role'] = player.role
         
         return state 
+    
+    def skip_question(self):
+        """Skip the current question and get a new one"""
+        question, answer = self.get_new_qa()
+        self.game_state['question'] = question
+        self.game_state['answer'] = answer
+        return {
+            'question': question,
+            'answer': answer
+        }
+    
+    def get_next_guesser(self):
+        """Get the player who will be the next guesser"""
+        player_ids = list(self.players.keys())
+        current_guesser = next(p for p in self.players.values() if p.is_guesser())
+        current_index = player_ids.index(current_guesser.id)
+        next_index = (current_index + 1) % len(player_ids)
+        return self.players[player_ids[next_index]]
     
