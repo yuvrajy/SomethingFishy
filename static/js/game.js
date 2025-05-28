@@ -44,6 +44,24 @@ document.getElementById('back-from-join').addEventListener('click', () => {
     landingButtons.style.display = 'block';
 });
 
+// How to Play modal handlers
+document.getElementById('how-to-play-btn').addEventListener('click', () => {
+    document.getElementById('how-to-play-modal').style.display = 'block';
+});
+
+// Close modal when clicking the X
+document.querySelector('.close').addEventListener('click', () => {
+    document.getElementById('how-to-play-modal').style.display = 'none';
+});
+
+// Close modal when clicking outside of it
+window.addEventListener('click', (event) => {
+    const modal = document.getElementById('how-to-play-modal');
+    if (event.target === modal) {
+        modal.style.display = 'none';
+    }
+});
+
 // Connection handling
 socket.on('connect', () => {
     console.log('Connected to server');

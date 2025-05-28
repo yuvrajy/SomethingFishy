@@ -258,7 +258,7 @@ class GameRoom:
     
     def get_new_qa(self):
         """Get a new question-answer pair, ensuring no repeats in the same game"""
-        with open('questions.txt', 'r') as file:
+        with open('questions.txt', 'r', encoding='utf-8') as file:
             # Read all lines and remove empty ones
             lines = [line.strip() for line in file.readlines() if line.strip()]
             
