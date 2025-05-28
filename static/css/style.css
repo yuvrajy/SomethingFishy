@@ -1,128 +1,167 @@
+/* Bare bones CSS - minimal styling for functionality only */
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
 body {
     font-family: Arial, sans-serif;
-    line-height: 1.6;
-    margin: 0;
-    padding: 20px;
-    background-color: #f0f2f5;
+    background: white;
+    color: black;
 }
 
 .container {
     max-width: 800px;
     margin: 0 auto;
-    background-color: white;
     padding: 20px;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
 }
 
-h1 {
-    text-align: center;
-    color: #1a73e8;
-}
-
-input[type="text"] {
-    width: 100%;
-    padding: 10px;
+input, button {
+    display: block;
     margin: 10px 0;
-    border: 1px solid #ddd;
-    border-radius: 4px;
-    box-sizing: border-box;
+    padding: 10px;
+    border: 1px solid #ccc;
+    background: white;
 }
 
 button {
-    background-color: #1a73e8;
-    color: white;
-    padding: 10px 20px;
-    border: none;
-    border-radius: 4px;
     cursor: pointer;
-    margin: 5px 0;
-    width: 100%;
 }
 
 button:hover {
-    background-color: #1557b0;
+    background: #f0f0f0;
 }
 
-#players-list, #players-game-list {
-    margin: 20px 0;
+/* Game Log Styling - Codenames.game inspired */
+.bg-white {
+    background-color: white;
 }
 
-.round-info {
-    background-color: #1a73e8;
-    color: white;
-    padding: 12px;
-    margin: 15px 0;
-    border-radius: 8px;
-    text-align: center;
-    font-weight: bold;
-    font-size: 1.2em;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-.player-item {
-    padding: 15px;
-    margin: 8px 0;
-    background-color: #f8f9fa;
-    border-radius: 8px;
+.flex {
     display: flex;
-    justify-content: space-between;
-    align-items: center;
-    transition: all 0.3s ease;
-    border: 1px solid #e0e0e0;
 }
 
-.player-item:hover {
-    background-color: #f5f5f5;
-    transform: translateY(-2px);
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+.flex-col {
+    flex-direction: column;
 }
 
-.player-item.guessed {
-    opacity: 0.7;
-    background-color: #f5f5f5;
-    border-style: dashed;
+.flex-1 {
+    flex: 1;
 }
 
-.player-item button {
-    width: auto;
-    min-width: 100px;
-    background-color: #4caf50;
-    transition: all 0.3s ease;
+.flex-none {
+    flex: none;
 }
 
-.player-item button:hover {
-    background-color: #388e3c;
+.flex-auto {
+    flex: 1 1 auto;
 }
 
-.player-item.correct-guess {
-    background-color: #e8f5e9;
-    border-color: #4caf50;
+.overflow-hidden {
+    overflow: hidden;
+}
+
+.transition-all {
     transition: all 0.3s ease;
 }
 
-.player-item.incorrect-guess {
-    background-color: #e3f2fd;
-    border-color: #2196f3;
-    transition: all 0.3s ease;
+.duration-400 {
+    transition-duration: 400ms;
 }
 
+.rounded-xl {
+    border-radius: 12px;
+}
+
+.text-sm {
+    font-size: 14px;
+}
+
+.text-center {
+    text-align: center;
+}
+
+.opacity-50 {
+    opacity: 0.5;
+}
+
+/* Game messages specific styling */
 #game-messages {
-    margin-top: 20px;
-    padding: 10px;
-    background-color: #f8f9fa;
-    border-radius: 4px;
-    min-height: 100px;
-    max-height: 200px;
+    border: 1px solid #ccc;
+    height: 400px;
     overflow-y: auto;
+    padding: 10px;
+    margin: 0;
+    background: white;
+    scroll-behavior: smooth;
 }
 
+.scrollTarget {
+    overflow-y: auto;
+    max-height: 500px;
+    min-height: 400px;
+}
+
+/* Message styling */
 .message {
     margin: 8px 0;
     padding: 8px 12px;
-    border-radius: 4px;
-    font-size: 1.1em;
-    animation: fadeIn 0.3s ease;
+    border-radius: 6px;
+    font-size: 14px;
+    line-height: 1.4;
+    opacity: 0;
+    animation: fadeIn 0.3s ease forwards;
+}
+
+.message.system {
+    background: #e3f2fd;
+    color: #1565c0;
+    border-left: 4px solid #2196f3;
+}
+
+.message.guesser-announcement {
+    background: #fff3e0;
+    color: #e65100;
+    border-left: 4px solid #ff9800;
+    font-weight: 600;
+}
+
+.message.guess-result {
+    background: #f3e5f5;
+    color: #7b1fa2;
+    border-left: 4px solid #9c27b0;
+}
+
+.message.award {
+    background: #fff8e1;
+    color: #f57f17;
+    border-left: 4px solid #ffc107;
+    font-weight: 500;
+}
+
+.message.info {
+    background: #f5f5f5;
+    color: #424242;
+    border-left: 4px solid #9e9e9e;
+}
+
+/* Typing effect */
+.typing {
+    overflow: hidden;
+    white-space: nowrap;
+    animation: typing 2s steps(40, end), blink-caret 0.75s step-end infinite;
+}
+
+@keyframes typing {
+    from { width: 0; }
+    to { width: 100%; }
+}
+
+@keyframes blink-caret {
+    from, to { border-right-color: transparent; }
+    50% { border-right-color: currentColor; }
 }
 
 @keyframes fadeIn {
@@ -130,166 +169,281 @@ button:hover {
     to { opacity: 1; transform: translateY(0); }
 }
 
-.message.system {
-    background-color: #e8f0fe;
-    color: #1a73e8;
-    border-left: 4px solid #1a73e8;
+/* Header styling for game log */
+main header {
+    padding: 8px 16px;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f9fafb;
 }
 
-.message.role {
-    background-color: #fef8e8;
-    color: #f9a825;
-    border-left: 4px solid #f9a825;
-    font-weight: bold;
+main header p {
+    margin: 0;
+    font-weight: 500;
+    color: #6b7280;
 }
 
-.message.guess-result {
-    background-color: #e8f5e9;
-    color: #2e7d32;
-    border-left: 4px solid #2e7d32;
+/* Dark mode support (basic) */
+@media (prefers-color-scheme: dark) {
+    .dark\:bg-\[rgba\(0\,0\,0\,0\.7\)\] {
+        background-color: rgba(0, 0, 0, 0.7);
+    }
+    
+    .dark\:bg-\[rgba\(0\,0\,0\,0\.15\)\] {
+        background-color: rgba(0, 0, 0, 0.15);
+    }
+    
+    .dark\:text-dark-text {
+        color: #d1d5db;
+    }
+    
+    .dark\:shadow-none {
+        box-shadow: none;
+    }
 }
 
-.message.info {
-    background-color: #f5f5f5;
-    color: #424242;
-    border-left: 4px solid #9e9e9e;
+/* Responsive landscape mode */
+@media (orientation: landscape) {
+    .land\:flex-auto {
+        flex: 1 1 auto;
+    }
+    
+    .land\:w-full {
+        width: 100%;
+    }
+    
+    .land\:shadow-bottom {
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    
+    .land\:border-ui {
+        border: 1px solid #e5e7eb;
+    }
+    
+    .land\:mt-4 {
+        margin-top: 16px;
+    }
+    
+    .land\:rounded-xl {
+        border-radius: 12px;
+    }
+    
+    .land\:rounded-b-xl {
+        border-bottom-left-radius: 12px;
+        border-bottom-right-radius: 12px;
+    }
 }
 
-.message.award {
-    background-color: #fff3e0;
-    color: #e65100;
-    border-left: 4px solid #ff9800;
-    font-weight: bold;
-    font-size: 1.2em;
-    margin: 12px 0;
-    padding: 12px 16px;
-}
-
-#game-info {
-    background-color: #e8f0fe;
-    padding: 20px;
-    border-radius: 8px;
-    margin: 15px 0;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-#game-info p {
-    margin: 12px 0;
-    font-size: 1.2em;
-    line-height: 1.4;
-}
-
-#player-role {
-    font-weight: bold;
-    color: #1a73e8;
-    font-size: 1.3em;
-    text-transform: uppercase;
-}
-
-#final-results {
-    margin: 20px 0;
-    padding: 20px;
-    background-color: #f8f9fa;
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-}
-
-#final-results h3 {
-    color: #1a73e8;
-    text-align: center;
-    margin-bottom: 20px;
-}
-
-#final-results h4 {
-    color: #1a73e8;
-    text-align: center;
-    margin: 30px 0 20px;
-    font-size: 1.4em;
-}
-
-#final-results p {
+.player-item {
+    border: 1px solid #ccc;
     padding: 10px;
-    margin: 10px 0;
-    background-color: white;
-    border-radius: 4px;
-    line-height: 1.6;
-}
-
-.awards-section {
-    margin-top: 40px;
-    padding: 20px;
-    background-color: white;
-    border-radius: 8px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-.award-card {
-    background-color: #fff3e0;
-    border-radius: 8px;
-    padding: 15px;
-    margin: 15px 0;
-    text-align: center;
-    border: 2px solid #ff9800;
-    transition: transform 0.2s ease;
-}
-
-.award-card:hover {
-    transform: translateY(-2px);
-}
-
-.award-card h5 {
-    color: #e65100;
-    font-size: 1.3em;
-    margin: 0 0 10px 0;
-}
-
-.award-card p {
     margin: 5px 0;
-    background: none;
-    padding: 5px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
 }
 
-.award-card .award-stat {
-    color: #ff6f00;
+.correct-guess {
+    background-color: #d4edda;
+    border-color: #c3e6cb;
+}
+
+.truth-teller-guess {
+    background-color: #f8d7da;
+    border-color: #f5c6cb;
+}
+
+/* Hide sections by default */
+#create-room-section,
+#join-room-section,
+#waiting-room,
+#game-section,
+#game-over {
+    display: none;
+}
+
+/* Players Board Styling - Codenames.game inspired */
+.players-board {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    margin: 20px 0;
+}
+
+.teamSelectWrapper {
+    flex: 1;
+    min-width: 300px;
+    border-radius: 12px;
+    border: 1px solid #e5e7eb;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    background: #f8fafc;
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.teamSelectWrapper.blue {
+    background: linear-gradient(135deg, #3b82f6, #1e40af);
+    color: white;
+}
+
+.teamSelectWrapper.red {
+    background: linear-gradient(135deg, #ef4444, #dc2626);
+    color: white;
+}
+
+.teamSelectWrapper.neutral {
+    background: linear-gradient(135deg, #6b7280, #4b5563);
+    color: white;
+}
+
+.team-content {
+    width: 100%;
+    padding: 16px;
+    box-sizing: border-box;
+}
+
+.team-score-section {
+    position: relative;
+    height: 48px;
+    margin-bottom: 8px;
+}
+
+.team-score {
+    width: 48px;
+    text-align: center;
+    position: absolute;
+    color: white;
+    top: 12px;
+    left: 20px;
+    font-size: 24px;
     font-weight: bold;
-    font-size: 1.1em;
 }
 
-.award-card .award-stat-detail {
-    color: #666;
-    font-size: 0.9em;
-    font-style: italic;
-    margin-top: 5px;
-    padding: 3px;
-    background-color: rgba(255, 255, 255, 0.5);
+.team-role-header {
+    margin-top: 8px;
+    font-size: 16px;
+    width: 100%;
+    position: relative;
+    color: rgba(255, 255, 255, 0.9);
+    font-weight: 600;
+}
+
+.team-players {
+    margin: 8px 0;
+}
+
+.team-players-list {
+    display: flex;
+    justify-content: flex-start;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.player-tag {
+    display: inline-block;
+    padding: 4px 8px;
+    margin-right: 4px;
+    margin-bottom: 4px;
+    color: white;
+    border: 1px solid rgba(255, 255, 255, 0.4);
     border-radius: 4px;
+    font-weight: bold;
+    font-size: 12px;
+    line-height: 1;
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.hint-section {
-    background-color: #fff3e0;
-    padding: 15px;
+.team-empty {
+    padding-left: 16px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.team-button {
+    width: 100%;
+    margin-top: 12px;
+    padding: 12px 16px;
+    border: 2px solid;
     border-radius: 6px;
-    margin: 10px 0;
-    color: #e65100;
-    font-size: 1.1em;
-    border-left: 4px solid #ff9800;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: #FFE400;
+    color: #000;
+    border-color: #FFE400;
+    border-top-color: #FFF6A7;
+    border-bottom-color: #E19708;
 }
 
-.skip-button {
-    background-color: #ff9800;
-    width: auto;
-    margin: 10px 0;
+.team-button:hover {
+    background: #ffd300;
+    border-color: #ffd300;
+    border-top-color: #fff078;
+    border-bottom-color: #e19708;
 }
 
-.skip-button:hover {
-    background-color: #f57c00;
+.team-button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
-@keyframes rotate {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
+/* Round info styling */
+.round-info {
+    width: 100%;
+    text-align: center;
+    font-size: 18px;
+    font-weight: bold;
+    margin-bottom: 16px;
+    padding: 12px;
+    background: #f1f5f9;
+    border-radius: 8px;
+    border: 1px solid #e2e8f0;
 }
 
-.rotating {
-    animation: rotate 1s linear;
+/* Room code corner display */
+.room-code-corner {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #2563eb;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 14px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    border: 2px solid #1d4ed8;
+}
+
+.room-code-corner::before {
+    content: "Room: ";
+    opacity: 0.8;
+    font-weight: normal;
+}
+
+/* Game Log Section - Enhanced for better space usage */
+.bg-white.flex.flex-col {
+    min-height: 450px; /* Ensure minimum height for the game log container */
+    max-height: 600px; /* Maximum height to prevent it from taking over the screen */
+}
+
+/* Ensure the game section uses available space efficiently */
+#game-section {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-height: 80vh; /* Use most of the viewport height */
+}
+
+#players-game-list {
+    flex-shrink: 0; /* Don't shrink the players list */
+}
+
+/* Make the game log take remaining space */
+#game-section main {
+    flex-grow: 1; /* Allow the game log to grow and take available space */
 } 

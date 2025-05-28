@@ -12,42 +12,71 @@ let playerName = '';
 let roomCode = '';
 let isHost = false;
 let myPlayerId = null;
+let bonusMessageShown = false; // Global flag to prevent duplicate bonus messages
 
 // DOM Elements
-const connectionStatus = document.getElementById('connection-status');
-const joinSection = document.getElementById('join-section');
+const landingButtons = document.getElementById('landing-buttons');
+const createRoomSection = document.getElementById('create-room-section');
+const joinRoomSection = document.getElementById('join-room-section');
 const waitingRoom = document.getElementById('waiting-room');
 const gameSection = document.getElementById('game-section');
 const gameOver = document.getElementById('game-over');
 
-// Initially hide the join section until connected
-joinSection.style.display = 'none';
-connectionStatus.style.display = 'block';
+// Landing page button handlers
+document.getElementById('create-room-btn').addEventListener('click', () => {
+    landingButtons.style.display = 'none';
+    createRoomSection.style.display = 'block';
+});
+
+document.getElementById('join-room-btn').addEventListener('click', () => {
+    landingButtons.style.display = 'none';
+    joinRoomSection.style.display = 'block';
+});
+
+// Back button handlers
+document.getElementById('back-from-create').addEventListener('click', () => {
+    createRoomSection.style.display = 'none';
+    landingButtons.style.display = 'block';
+});
+
+document.getElementById('back-from-join').addEventListener('click', () => {
+    joinRoomSection.style.display = 'none';
+    landingButtons.style.display = 'block';
+});
 
 // Connection handling
 socket.on('connect', () => {
     console.log('Connected to server');
-    connectionStatus.style.display = 'none';
-    joinSection.style.display = 'block';
 });
 
 socket.on('connect_error', (error) => {
     console.error('Connection error:', error);
-    connectionStatus.style.display = 'block';
-    connectionStatus.innerHTML = '<p style="color: red;">Error connecting to server. Retrying...</p>';
-    joinSection.style.display = 'none';
+    alert('Error connecting to server. Please try again.');
 });
 
 socket.on('disconnect', () => {
     console.log('Disconnected from server');
-    connectionStatus.style.display = 'block';
-    connectionStatus.innerHTML = '<p style="color: red;">Disconnected from server. Reconnecting...</p>';
-    joinSection.style.display = 'none';
+    alert('Disconnected from server. Please refresh the page.');
+});
+
+// Handle errors from server
+socket.on('error', (data) => {
+    console.error('Server error:', data);
+    alert(`Error: ${data.message}`);
+    
+    // If we're in a reconnection attempt and it failed, go back to join room page
+    if (data.message.includes('already connected') || data.message.includes('in progress')) {
+        // Reset to join room page
+        gameSection.style.display = 'none';
+        waitingRoom.style.display = 'none';
+        createRoomSection.style.display = 'none';
+        joinRoomSection.style.display = 'block';
+    }
 });
 
 // Create Room
 document.getElementById('create-room').addEventListener('click', () => {
-    playerName = document.getElementById('player-name').value.trim();
+    playerName = document.getElementById('create-player-name').value.trim();
     if (!playerName) {
         alert('Please enter your name');
         return;
@@ -74,7 +103,7 @@ document.getElementById('create-room').addEventListener('click', () => {
 
 // Join Room
 document.getElementById('join-room').addEventListener('click', () => {
-    playerName = document.getElementById('player-name').value.trim();
+    playerName = document.getElementById('join-player-name').value.trim();
     roomCode = document.getElementById('room-code').value.trim().toUpperCase();
     
     if (!playerName || !roomCode) {
@@ -82,6 +111,45 @@ document.getElementById('join-room').addEventListener('click', () => {
         return;
     }
 
+    // First check room status to see if reconnection is possible
+    fetch(`/room_status/${roomCode}`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.error) {
+            // Room doesn't exist, proceed with normal join
+            attemptJoinRoom();
+        } else {
+            // Room exists, show status and disconnected players
+            console.log('Room status:', data);
+            
+            if (data.disconnected_players.includes(playerName)) {
+                console.log(`Player ${playerName} found in disconnected players list`);
+                alert(`Reconnecting as ${playerName}...`);
+                // Skip HTTP endpoint and go directly to WebSocket for reconnection
+                joinGame();
+            } else if (data.status !== 'waiting') {
+                const disconnectedList = data.disconnected_players.length > 0 
+                    ? `\n\nDisconnected players available for reconnection:\n${data.disconnected_players.join(', ')}`
+                    : '\n\nNo disconnected players available.';
+                
+                if (confirm(`Game is in progress (Round ${data.current_round}).${disconnectedList}\n\nTry to join anyway?`)) {
+                    // For non-reconnection attempts to games in progress, still try HTTP first
+                    attemptJoinRoom();
+                }
+                return;
+            } else {
+                // Game is waiting, proceed normally
+                attemptJoinRoom();
+            }
+        }
+    })
+    .catch(error => {
+        console.error('Error checking room status:', error);
+        attemptJoinRoom(); // Fallback to normal join
+    });
+});
+
+function attemptJoinRoom() {
     fetch(`/join_room/${roomCode}`, {
         method: 'POST',
         headers: {
@@ -96,16 +164,23 @@ document.getElementById('join-room').addEventListener('click', () => {
             return;
         }
         joinGame();
+    })
+    .catch(error => {
+        console.error('Error joining room:', error);
+        alert('Error joining room. Please try again.');
     });
-});
+}
 
 function joinGame() {
+    console.log(`Attempting to join game: ${roomCode} as ${playerName}`);
+    
     socket.emit('join_game', {
         room_code: roomCode,
         name: playerName
     });
     
-    joinSection.style.display = 'none';
+    createRoomSection.style.display = 'none';
+    joinRoomSection.style.display = 'none';
     waitingRoom.style.display = 'block';
     document.getElementById('room-code-display').textContent = roomCode;
 }
@@ -131,6 +206,64 @@ socket.on('player_joined', (data) => {
     }
 });
 
+// Handle player disconnection
+socket.on('player_disconnected', (data) => {
+    addGameMessage(data.message, 'system');
+    
+    // Update player list to show disconnected status
+    const playerItem = document.querySelector(`[data-player-id="${data.player_id}"]`);
+    if (playerItem) {
+        playerItem.classList.add('disconnected');
+        playerItem.textContent += ' (Disconnected)';
+    }
+});
+
+// Handle player reconnection
+socket.on('player_reconnected', (data) => {
+    addGameMessage(data.message, 'guesser-announcement');
+    
+    // Update player list to remove disconnected status
+    const playerItem = document.querySelector(`[data-player-id="${data.player_id}"]`);
+    if (playerItem) {
+        playerItem.classList.remove('disconnected');
+        playerItem.textContent = playerItem.textContent.replace(' (Disconnected)', '');
+    }
+});
+
+// Handle game pause
+socket.on('game_paused', (data) => {
+    addGameMessage(data.message, 'system');
+    
+    // Show pause overlay or message
+    const gameSection = document.getElementById('game-section');
+    let pauseOverlay = document.getElementById('pause-overlay');
+    
+    if (!pauseOverlay) {
+        pauseOverlay = document.createElement('div');
+        pauseOverlay.id = 'pause-overlay';
+        pauseOverlay.className = 'pause-overlay';
+        pauseOverlay.innerHTML = `
+            <div class="pause-content">
+                <h3>Game Paused</h3>
+                <p>${data.message}</p>
+                <div class="loading-spinner"></div>
+            </div>
+        `;
+        gameSection.appendChild(pauseOverlay);
+    }
+});
+
+// Handle game resume
+socket.on('game_resumed', (data) => {
+    addGameMessage(data.message, 'guesser-announcement');
+    
+    // Remove pause overlay
+    const pauseOverlay = document.getElementById('pause-overlay');
+    if (pauseOverlay) {
+        pauseOverlay.remove();
+    }
+});
+
 // Start game
 document.getElementById('start-game').addEventListener('click', () => {
     socket.emit('start_game', { room_code: roomCode });
@@ -140,9 +273,26 @@ function addGameMessage(message, type = 'info') {
     const messagesDiv = document.getElementById('game-messages');
     const messageElem = document.createElement('div');
     messageElem.className = `message ${type}`;
+    
+    // Add typing effect for longer messages
+    if (message.length > 20) {
+        messageElem.classList.add('typing');
+        messageElem.style.borderRight = '2px solid';
+        
+        // Remove typing effect after animation completes
+        setTimeout(() => {
+            messageElem.classList.remove('typing');
+            messageElem.style.borderRight = 'none';
+        }, Math.min(message.length * 50, 3000)); // Adjust timing based on message length
+    }
+    
     messageElem.textContent = message;
     messagesDiv.appendChild(messageElem);
-    messagesDiv.scrollTop = messagesDiv.scrollHeight; // Auto-scroll to bottom
+    
+    // Force auto-scroll to bottom with a small delay to ensure the element is rendered
+    setTimeout(() => {
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }, 10);
 }
 
 // Game started
@@ -150,6 +300,12 @@ socket.on('game_started', (state) => {
     waitingRoom.style.display = 'none';
     gameSection.style.display = 'block';
     myPlayerId = state.player_id;
+    bonusMessageShown = false; // Reset bonus message flag for new game
+    
+    // Display room code in corner
+    const roomCodeCorner = document.getElementById('room-code-corner');
+    roomCodeCorner.textContent = roomCode;
+    
     addGameMessage('Game has started!', 'system');
     updateGameState(state);
 });
@@ -157,6 +313,20 @@ socket.on('game_started', (state) => {
 // Update game state
 socket.on('game_state_update', updateGameState);
 socket.on('new_round', updateGameState);
+
+// Add socket handler for skip question (moved outside updateGameState)
+socket.on('question_skipped', (data) => {
+    const questionElem = document.getElementById('question');
+    if (questionElem) {
+        questionElem.textContent = `Question: ${data.question}`;
+    }
+    if (data.answer) {
+        const answerElem = document.getElementById('answer-section');
+        if (answerElem) {
+            answerElem.textContent = `Answer: ${data.answer}`;
+        }
+    }
+});
 
 function updateGameState(state) {
     // Find my player info
@@ -221,10 +391,10 @@ function updateGameState(state) {
     roundInfo.textContent = `Round ${state.current_round || 1}`;
     playersList.appendChild(roundInfo);
     
-    // Add other players
+    // Add other players with guess buttons (back to original functionality)
     Object.values(state.players).forEach(player => {
         if (myPlayer.role === 'guesser' && player.id === myPlayerId) {
-            return;
+            return; // Don't show guesser to themselves
         }
 
         const playerItem = document.createElement('div');
@@ -232,16 +402,19 @@ function updateGameState(state) {
         if (player.has_been_guessed) {
             playerItem.classList.add('guessed');
         }
+        if (player.is_disconnected) {
+            playerItem.classList.add('disconnected');
+        }
         
         let playerStatus = player.has_been_guessed ? ' (Already Guessed)' : '';
-        playerItem.textContent = `${player.name} - ${player.points} points${playerStatus}`;
+        let disconnectedStatus = player.is_disconnected ? ' [DC]' : '';
+        playerItem.textContent = `${player.name} - ${player.points} points${playerStatus}${disconnectedStatus}`;
         
-        if (myPlayer.role === 'guesser' && !player.has_been_guessed) {
+        if (myPlayer.role === 'guesser' && !player.has_been_guessed && !player.is_disconnected) {
             const guessButton = document.createElement('button');
             guessButton.textContent = 'Liar!';
             const playerId = player.id; // Store player.id in a closure
             guessButton.onclick = () => {
-                const playerItem = guessButton.parentElement;
                 socket.emit('make_guess', {
                     room_code: roomCode,
                     guessed_player_id: playerId
@@ -255,23 +428,9 @@ function updateGameState(state) {
         playersList.appendChild(playerItem);
     });
 
-    // Add socket handler for skip question
-    socket.on('question_skipped', (data) => {
-        const questionElem = document.getElementById('question');
-        if (questionElem) {
-            questionElem.textContent = `Question: ${data.question}`;
-        }
-        if (data.answer) {
-            const answerElem = document.getElementById('answer-section');
-            if (answerElem) {
-                answerElem.textContent = `Answer: ${data.answer}`;
-            }
-        }
-    });
-
     // Only announce next guesser when it's a new round
     if (state.new_round && state.next_guesser) {
-        addGameMessage(`The new guesser is: ${state.next_guesser}`, 'system');
+        addGameMessage(`The new guesser is: ${state.next_guesser}`, 'guesser-announcement');
     }
 }
 
@@ -282,6 +441,7 @@ socket.on('guess_result', (result) => {
     
     // Find the guessed player's item and apply the appropriate color
     const playerItems = document.querySelectorAll('.player-item');
+    
     playerItems.forEach(item => {
         if (item.textContent.includes(result.guessed_player)) {
             // Remove any existing guess classes
@@ -299,12 +459,13 @@ socket.on('guess_result', (result) => {
             } else {
                 item.classList.add('correct-guess');
                 message.textContent = `${result.guessed_player} was a Liar! +${result.points_earned} point${result.points_earned !== 1 ? 's' : ''}`;
-                // If all liars found, announce it
-                if (result.found_all_liars) {
+                // If all liars found, announce it (only once per round)
+                if (result.found_all_liars && !bonusMessageShown) {
                     const bonusMessage = document.createElement('div');
                     bonusMessage.className = 'message system';
                     bonusMessage.textContent = 'You found all the liars! Bonus point awarded!';
                     document.getElementById('game-messages').appendChild(bonusMessage);
+                    bonusMessageShown = true;
                 }
             }
             item.classList.add('guessed');
@@ -330,8 +491,9 @@ socket.on('round_ending', () => {
 
 // Handle new round state updates
 socket.on('new_round', (state) => {
+    bonusMessageShown = false; // Reset bonus message flag for new round
     // Add next guesser announcement
-    addGameMessage(`The new guesser is: ${state.next_guesser}`, 'system');
+    addGameMessage(`The new guesser is: ${state.next_guesser}`, 'guesser-announcement');
     
     // Update the game state with the new round info
     updateGameState(state);
@@ -361,7 +523,9 @@ socket.on('game_over', (results) => {
     messagesDiv.appendChild(liarAward);
     
     // Auto-scroll to show awards
-    messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    setTimeout(() => {
+        messagesDiv.scrollTop = messagesDiv.scrollHeight;
+    }, 100);
     
     // Show the final results screen
     gameSection.style.display = 'none';
@@ -442,5 +606,42 @@ style.textContent = `
     .player-item.guessed {
         opacity: 0.8;
     }
+    .player-item.disconnected {
+        opacity: 0.6;
+        background-color: #ffeb3b;
+        color: #333;
+    }
+    .pause-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.8);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    }
+    .pause-content {
+        background: white;
+        padding: 30px;
+        border-radius: 10px;
+        text-align: center;
+        max-width: 400px;
+    }
+    .loading-spinner {
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #3498db;
+        border-radius: 50%;
+        width: 40px;
+        height: 40px;
+        animation: spin 2s linear infinite;
+        margin: 20px auto;
+    }
+    @keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
 `;
-document.head.appendChild(style); 
+document.head.appendChild(style);

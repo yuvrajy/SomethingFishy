@@ -5,6 +5,8 @@ from main import Player, GameRoom
 import random
 import string
 from gevent import monkey, sleep
+import time
+import threading
 monkey.patch_all()
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
@@ -87,23 +89,56 @@ def handle_disconnect():
     if request.sid in player_sessions:
         player_id = player_sessions[request.sid]['player_id']
         room_code = player_sessions[request.sid]['room_code']
+        player_name = player_sessions[request.sid]['name']
         
         if room_code in game_rooms:
             game_room = game_rooms[room_code]
-            game_room.remove_player(player_id)
+            
+            # Mark player as disconnected instead of removing immediately
+            if player_id in game_room.players:
+                game_room.players[player_id].is_disconnected = True
+                game_room.players[player_id].disconnect_time = time.time()
+            
             leave_room(room_code)
             
-            # Notify other players
-            emit('player_left', {
+            # Notify other players about disconnection
+            emit('player_disconnected', {
                 'player_id': player_id,
-                'message': f"Player {player_sessions[request.sid]['name']} has left the game"
+                'player_name': player_name,
+                'message': f"{player_name} has disconnected"
             }, room=room_code)
             
-            # Clean up empty rooms
-            if len(game_room.players) == 0:
-                del game_rooms[room_code]
+            # Check if we should pause/end the game due to disconnections
+            connected_players = [p for p in game_room.players.values() if not getattr(p, 'is_disconnected', False)]
+            
+            if len(connected_players) < 3 and game_room.game_state['status'] == 'playing':
+                # Pause the game if too few players remain
+                game_room.game_state['status'] = 'paused'
+                emit('game_paused', {
+                    'message': f"Game paused - need at least 3 players. Waiting for {player_name} to reconnect..."
+                }, room=room_code)
+            elif len(connected_players) == 0:
+                # Schedule room cleanup if no one is connected
+                schedule_room_cleanup(room_code, 300)  # 5 minutes
         
         del player_sessions[request.sid]
+
+def schedule_room_cleanup(room_code, delay_seconds):
+    """Schedule a room for cleanup after a delay"""
+    def cleanup_room():
+        time.sleep(delay_seconds)
+        if room_code in game_rooms:
+            game_room = game_rooms[room_code]
+            connected_players = [p for p in game_room.players.values() if not getattr(p, 'is_disconnected', False)]
+            
+            # Only cleanup if still no connected players
+            if len(connected_players) == 0:
+                print(f"Cleaning up empty room: {room_code}")
+                del game_rooms[room_code]
+    
+    cleanup_thread = threading.Thread(target=cleanup_room)
+    cleanup_thread.daemon = True
+    cleanup_thread.start()
 
 @socketio.on('join_game')
 def handle_join_game(data):
@@ -117,39 +152,128 @@ def handle_join_game(data):
     
     game_room = game_rooms[room_code]
     
-    # Create new player
-    player_id = len(game_room.players) + 1
-    player = Player(player_id, player_name)
-    game_room.add_player(player)
+    # Debug: Print current players and their status
+    print(f"Join attempt: {player_name} -> {room_code}")
+    print(f"Current players in room:")
+    for pid, player in game_room.players.items():
+        disconnected = getattr(player, 'is_disconnected', False)
+        print(f"  {player.name} (ID: {pid}) - Disconnected: {disconnected}")
     
-    # Store session info
-    player_sessions[request.sid] = {
-        'player_id': player_id,
-        'room_code': room_code,
-        'name': player_name
-    }
+    # Check if this is a reconnecting player (more flexible matching)
+    reconnecting_player = None
+    for player in game_room.players.values():
+        print(f"Checking player: '{player.name}' vs '{player_name}' (case-insensitive: {player.name.lower() == player_name.lower()})")
+        print(f"  Player disconnected status: {getattr(player, 'is_disconnected', False)}")
+        
+        if player.name.lower() == player_name.lower():  # Case-insensitive matching
+            if getattr(player, 'is_disconnected', False):
+                reconnecting_player = player
+                print(f"✓ Found disconnected player to reconnect: {player.name}")
+                break
+            else:
+                # Player with same name is already connected
+                print(f"✗ Player with same name is already connected: {player.name}")
+                emit('error', {'message': f'Player "{player_name}" is already connected to this game'})
+                return
     
-    # Join socket room
-    join_room(room_code)
-    
-    # Send list of existing players to the new player
-    for existing_player in game_room.players.values():
-        if existing_player.id != player_id:  # Don't send the new player to themselves
-            emit('player_joined', {
-                'player': existing_player.to_dict(),
-                'message': f'{existing_player.name} is in the room'
-            })
-    
-    # Notify all players in room about the new player
-    emit('player_joined', {
-        'player': player.to_dict(),
-        'message': f'{player_name} has joined the game'
-    }, room=room_code)
-    
-    # Send current game state to new player
-    state = game_room.get_player_state(player_id)
-    state['player_id'] = player_id  # Add player's own ID to state
-    emit('game_state', state)
+    if reconnecting_player:
+        # Handle reconnection
+        player_id = reconnecting_player.id
+        reconnecting_player.is_disconnected = False
+        reconnecting_player.disconnect_time = None
+        
+        print(f"Reconnecting player {player_name} with ID {player_id}")
+        
+        # Store session info
+        player_sessions[request.sid] = {
+            'player_id': player_id,
+            'room_code': room_code,
+            'name': player_name
+        }
+        
+        # Join socket room
+        join_room(room_code)
+        
+        # Notify all players about reconnection
+        emit('player_reconnected', {
+            'player_id': player_id,
+            'player_name': player_name,
+            'message': f'{player_name} has reconnected'
+        }, room=room_code)
+        
+        # Check if game can resume
+        connected_players = [p for p in game_room.players.values() if not getattr(p, 'is_disconnected', False)]
+        print(f"Connected players after reconnection: {len(connected_players)}")
+        
+        if len(connected_players) >= 3 and game_room.game_state['status'] == 'paused':
+            game_room.game_state['status'] = 'playing'
+            emit('game_resumed', {
+                'message': 'Game resumed - enough players reconnected!'
+            }, room=room_code)
+        
+        # Send current game state to reconnected player
+        state = game_room.get_player_state(player_id)
+        state['player_id'] = player_id
+        state['current_round'] = game_room.game_state['current_round']
+        
+        print(f"Game status: {game_room.game_state['status']}")
+        
+        # Send appropriate event based on game status
+        if game_room.game_state['status'] in ['playing', 'paused']:
+            emit('game_started', state)  # This will show the game interface
+            print(f"Sent game_started event to reconnected player")
+        else:
+            emit('game_state', state)  # This will show waiting room
+            print(f"Sent game_state event to reconnected player")
+        
+    else:
+        # Handle new player joining
+        print(f"No disconnected player found, treating as new player")
+        
+        if game_room.game_state['status'] not in ['waiting']:
+            # Show available disconnected players for debugging
+            disconnected_players = [p.name for p in game_room.players.values() if getattr(p, 'is_disconnected', False)]
+            if disconnected_players:
+                emit('error', {'message': f'Game in progress. Disconnected players available for reconnection: {", ".join(disconnected_players)}'})
+            else:
+                emit('error', {'message': 'Game already in progress and no disconnected players available'})
+            return
+        
+        # Create new player
+        player_id = len(game_room.players) + 1
+        player = Player(player_id, player_name)
+        game_room.add_player(player)
+        
+        print(f"Created new player {player_name} with ID {player_id}")
+        
+        # Store session info
+        player_sessions[request.sid] = {
+            'player_id': player_id,
+            'room_code': room_code,
+            'name': player_name
+        }
+        
+        # Join socket room
+        join_room(room_code)
+        
+        # Send list of existing players to the new player
+        for existing_player in game_room.players.values():
+            if existing_player.id != player_id:  # Don't send the new player to themselves
+                emit('player_joined', {
+                    'player': existing_player.to_dict(),
+                    'message': f'{existing_player.name} is in the room'
+                })
+        
+        # Notify all players in room about the new player
+        emit('player_joined', {
+            'player': player.to_dict(),
+            'message': f'{player_name} has joined the game'
+        }, room=room_code)
+        
+        # Send current game state to new player
+        state = game_room.get_player_state(player_id)
+        state['player_id'] = player_id  # Add player's own ID to state
+        emit('game_state', state)
 
 @socketio.on('start_game')
 def handle_start_game(data):
@@ -206,8 +330,8 @@ def handle_guess(data):
             # Wait for 1.5 seconds to let the animation complete
             sleep(1.5)
             
-            # Start new round
-            game_room.start_new_round()
+            # end_round() already calls start_new_round(), so we don't need to call it again
+            # The round was already ended in process_guess -> end_round()
             
             # Get the current guesser after the new round started
             current_guesser = next(p for p in game_room.players.values() if p.is_guesser())
@@ -252,6 +376,34 @@ def get_player_sid(player_id, room_code):
         if data['player_id'] == player_id and data['room_code'] == room_code:
             return sid
     return None
+
+@app.route('/room_status/<room_code>', methods=['GET'])
+def get_room_status(room_code):
+    """Get the status of a room and list of players"""
+    if room_code not in game_rooms:
+        return jsonify({'error': 'Room not found'}), 404
+    
+    game_room = game_rooms[room_code]
+    
+    players_info = []
+    for player in game_room.players.values():
+        players_info.append({
+            'name': player.name,
+            'id': player.id,
+            'points': player.points,
+            'is_disconnected': getattr(player, 'is_disconnected', False),
+            'disconnect_time': getattr(player, 'disconnect_time', None)
+        })
+    
+    return jsonify({
+        'room_code': room_code,
+        'status': game_room.game_state['status'],
+        'current_round': game_room.game_state['current_round'],
+        'total_players': len(game_room.players),
+        'connected_players': len([p for p in game_room.players.values() if not getattr(p, 'is_disconnected', False)]),
+        'disconnected_players': [p.name for p in game_room.players.values() if getattr(p, 'is_disconnected', False)],
+        'players': players_info
+    })
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5001, debug=True) 

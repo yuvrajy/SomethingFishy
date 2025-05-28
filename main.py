@@ -6,8 +6,8 @@ class Player:
         self.name = name
         self.points = 0
         self.role = "guesser" if is_guesser else "liar"
+        self.temp_points = 0  # Points accumulated during current round
         self.has_been_guessed = False
-        self.temp_points = 0
         # Stats tracking
         self.times_as_guesser = 0
         self.times_as_truth_teller = 0
@@ -17,6 +17,9 @@ class Player:
         self.times_caught_as_liar = 0
         self.times_survived_as_liar = 0
         self.rounds_played = 0
+        # Disconnection tracking
+        self.is_disconnected = False
+        self.disconnect_time = None
 
     def __str__(self):
         return f"Player(id={self.id}, name={self.name}, points={self.points})"
@@ -55,7 +58,9 @@ class Player:
             'name': self.name,
             'points': self.points,
             'role': self.role,
-            'has_been_guessed': self.has_been_guessed
+            'has_been_guessed': self.has_been_guessed,
+            'is_disconnected': self.is_disconnected,
+            'disconnect_time': self.disconnect_time
         }
 
 class GameRoom:
@@ -363,7 +368,8 @@ class GameRoom:
                 'id': p.id,
                 'name': p.name,
                 'points': p.points,
-                'has_been_guessed': p.has_been_guessed
+                'has_been_guessed': p.has_been_guessed,
+                'is_disconnected': getattr(p, 'is_disconnected', False)
             } for pid, p in self.players.items()
         }
         

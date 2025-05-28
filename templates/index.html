@@ -8,21 +8,29 @@
 </head>
 <body>
     <div class="container">
-        <h1>Something Fishy</h1>
+        <h1>Welcome to Something Fishy!</h1>
         
-        <!-- Connection Status -->
-        <div id="connection-status" style="text-align: center; margin-bottom: 20px; display: none;">
-            <p style="color: red;">Connecting to server...</p>
+        <!-- Landing Page Buttons -->
+        <div id="landing-buttons">
+            <button id="create-room-btn">Create Room</button>
+            <button id="join-room-btn">Join Room</button>
         </div>
-        
-        <!-- Join Game Section -->
-        <div id="join-section">
-            <input type="text" id="player-name" placeholder="Enter your name">
+
+        <!-- Create Room Section -->
+        <div id="create-room-section" style="display: none;">
+            <h2>Create Room</h2>
+            <input type="text" id="create-player-name" placeholder="Enter your name">
             <button id="create-room">Create Room</button>
-            <div id="join-room-section">
-                <input type="text" id="room-code" placeholder="Enter room code">
-                <button id="join-room">Join Room</button>
-            </div>
+            <button id="back-from-create">Back</button>
+        </div>
+
+        <!-- Join Room Section -->
+        <div id="join-room-section" style="display: none;">
+            <h2>Join Room</h2>
+            <input type="text" id="join-player-name" placeholder="Enter your name">
+            <input type="text" id="room-code" placeholder="Enter room code">
+            <button id="join-room">Join Room</button>
+            <button id="back-from-join">Back</button>
         </div>
 
         <!-- Waiting Room Section -->
@@ -35,13 +43,25 @@
 
         <!-- Game Section -->
         <div id="game-section" style="display: none;">
+            <!-- Room Code Display -->
+            <div id="room-code-corner" class="room-code-corner"></div>
+            
             <div id="game-info">
                 <p>Your Role: <span id="player-role"></span></p>
                 <p>Question: <span id="question"></span></p>
                 <p id="answer-section" style="display: none;">Answer: <span id="answer"></span></p>
             </div>
-            <div id="players-game-list"></div>
-            <div id="game-messages"></div>
+            
+            <!-- Players Board Section - Styled like Codenames.game -->
+            <div id="players-game-list" class="players-board"></div>
+            
+            <!-- Game Log Section - Styled like Codenames.game -->
+            <main class="bg-white flex flex-col flex-1 land:flex-auto land:w-full overflow-hidden transition-all duration-400 land:shadow-bottom land:border-ui land:mt-4 land:rounded-xl dark:bg-[rgba(0,0,0,0.7)] dark:shadow-none opacity-50 dark:bg-[rgba(0,0,0,0.15)]">
+                <header class="flex-none">
+                    <p class="text-sm text-center dark:text-dark-text">Game log</p>
+                </header>
+                <section id="game-messages" class="scrollTarget flex-auto land:rounded-b-xl"></section>
+            </main>
         </div>
 
         <!-- Game Over Section -->
