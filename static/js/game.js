@@ -106,6 +106,7 @@ document.getElementById('create-room').addEventListener('click', () => {
         return;
     }
 
+    console.log('Creating room for player:', playerName);
     fetch('/create_room', {
         method: 'POST',
         headers: {
@@ -121,7 +122,12 @@ document.getElementById('create-room').addEventListener('click', () => {
         }
         roomCode = data.room_code;
         isHost = true;
+        console.log('Room created successfully. Room code:', roomCode, 'Is host:', isHost);
         joinGame();
+    })
+    .catch(error => {
+        console.error('Error creating room:', error);
+        alert('Error creating room. Please try again.');
     });
 });
 
@@ -211,11 +217,13 @@ function joinGame() {
 
 // Handle player joined
 socket.on('player_joined', (data) => {
+    console.log('Player joined event received:', data);
     const playersList = document.getElementById('players-list');
     
     // Check if this player is already in the list
     const existingPlayer = playersList.querySelector(`[data-player-id="${data.player.id}"]`);
     if (existingPlayer) {
+        console.log('Player already in list:', data.player.name);
         return; // Skip if player already shown
     }
     
@@ -226,7 +234,15 @@ socket.on('player_joined', (data) => {
     playersList.appendChild(playerItem);
     
     if (isHost) {
-        document.getElementById('start-game').style.display = 'block';
+        console.log('Current player is host, showing start button');
+        const startButton = document.getElementById('start-game');
+        if (startButton) {
+            startButton.style.display = 'block';
+        } else {
+            console.error('Start game button not found in DOM');
+        }
+    } else {
+        console.log('Current player is not host');
     }
 });
 
@@ -288,12 +304,32 @@ socket.on('game_resumed', (data) => {
     }
 });
 
-// Start game
-document.getElementById('start-game').addEventListener('click', () => {
-    console.log('Start game button clicked');
-    console.log('Room code:', roomCode);
-    console.log('Is host:', isHost);
-    socket.emit('start_game', { room_code: roomCode });
+// Initialize start game button event listener
+document.addEventListener('DOMContentLoaded', () => {
+    const startButton = document.getElementById('start-game');
+    if (startButton) {
+        startButton.addEventListener('click', () => {
+            console.log('Start game button clicked');
+            console.log('Current state - Room code:', roomCode, 'Is host:', isHost);
+            
+            if (!roomCode) {
+                console.error('No room code available');
+                alert('Error: Room code not found');
+                return;
+            }
+            
+            if (!isHost) {
+                console.error('Non-host player trying to start game');
+                alert('Only the host can start the game');
+                return;
+            }
+            
+            console.log('Emitting start_game event');
+            socket.emit('start_game', { room_code: roomCode });
+        });
+    } else {
+        console.error('Start game button not found during initialization');
+    }
 });
 
 function addGameMessage(message, type = 'info') {
@@ -322,8 +358,9 @@ function addGameMessage(message, type = 'info') {
     }, 10);
 }
 
-// Game started
+// Handle game started event
 socket.on('game_started', (state) => {
+    console.log('Game started event received:', state);
     waitingRoom.style.display = 'none';
     gameSection.style.display = 'block';
     myPlayerId = state.player_id;
@@ -331,7 +368,9 @@ socket.on('game_started', (state) => {
     
     // Display room code in corner
     const roomCodeCorner = document.getElementById('room-code-corner');
-    roomCodeCorner.textContent = roomCode;
+    if (roomCodeCorner) {
+        roomCodeCorner.textContent = roomCode;
+    }
     
     addGameMessage('Game has started!', 'system');
     updateGameState(state);
