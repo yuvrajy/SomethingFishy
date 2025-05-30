@@ -353,22 +353,41 @@ def handle_guess(data):
 
 @socketio.on('skip_question')
 def handle_skip_question(data):
-    """Handle skipping to a new question"""
+    """Handle skipping the current question"""
     room_code = data.get('room_code')
     if room_code not in game_rooms:
-        emit('error', {'message': 'Room not found'})
         return
     
     game_room = game_rooms[room_code]
     result = game_room.skip_question()
+    emit('question_skipped', result, room=room_code)
+
+@socketio.on('restart_game')
+def handle_restart_game(data):
+    """Handle restarting the game in the same room"""
+    room_code = data.get('room_code')
+    if room_code not in game_rooms:
+        return
     
-    # Send new question to all players
+    game_room = game_rooms[room_code]
+    
+    # Notify all players that game is restarting
+    emit('game_restarting', room=room_code)
+    
+    # Reset room state but keep players
+    game_room.reset_for_restart()
+    
+    # Notify all players that game has restarted
     for player_id in game_room.players:
-        state = {
-            'question': result['question'],
-            'answer': result['answer'] if not game_room.players[player_id].is_guesser() else None
-        }
-        emit('question_skipped', state, room=get_player_sid(player_id, room_code))
+        player = game_room.players[player_id]
+        emit('player_rejoined', {
+            'player': {
+                'id': player_id,
+                'name': player.name
+            }
+        }, room=room_code)
+    
+    emit('game_restarted', room=room_code)
 
 def get_player_sid(player_id, room_code):
     """Get socket ID for a player"""

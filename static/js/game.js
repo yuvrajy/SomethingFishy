@@ -535,93 +535,125 @@ socket.on('new_round', (state) => {
 
 // Game over
 socket.on('game_over', (results) => {
-    // Add awards to game feed first
-    const messagesDiv = document.getElementById('game-messages');
-    
-    // Add a separator
-    const separator = document.createElement('div');
-    separator.className = 'message system';
-    separator.innerHTML = '🏆 Game Over! Final Awards 🏆';
-    messagesDiv.appendChild(separator);
-    
-    // Add Best Guesser award
-    const guesserAward = document.createElement('div');
-    guesserAward.className = 'message award';
-    guesserAward.innerHTML = `🎯 Best Guesser: ${results.awards.best_guesser.name} (${results.awards.best_guesser.correct_guesses} correct guesses)`;
-    messagesDiv.appendChild(guesserAward);
-    
-    // Add Best Liar award
-    const liarAward = document.createElement('div');
-    liarAward.className = 'message award';
-    liarAward.innerHTML = `🎭 Best Liar: ${results.awards.best_liar.name} (${results.awards.best_liar.successful_escapes} successful escapes)`;
-    messagesDiv.appendChild(liarAward);
-    
-    // Auto-scroll to show awards
-    setTimeout(() => {
-        messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    }, 100);
-    
-    // Show the final results screen
+    // Hide game section and show game over
     gameSection.style.display = 'none';
     gameOver.style.display = 'block';
     
     const resultsDiv = document.getElementById('final-results');
-    resultsDiv.innerHTML = `
-        <h3>🏆 Game Over - ${results.winner} Wins!</h3>
-        <h4>Final Rankings:</h4>
-        ${results.rankings.map(r => `
-            <p>${getRankEmoji(r.rank)} ${r.rank}. ${r.name}
-               <br>Points: ${r.points}
-               <br>Guessing Accuracy: ${Math.round(r.accuracy)}%
-               ${r.awards ? `<br>🏅 Awards: ${r.awards}` : ''}
-            </p>
-        `).join('')}
-        <div class="awards-section">
-            <h4>Game Awards</h4>
-            <div class="award-card">
-                <h5>Best Guesser</h5>
-                <p>${results.awards.best_guesser.name}</p>
-                <p class="award-stat">${results.awards.best_guesser.correct_guesses} correct guesses</p>
-                <p class="award-stat-detail">Success Rate: ${Math.round((results.stats[Object.keys(results.stats).find(id => 
-                    results.stats[id].correct_guesses === results.awards.best_guesser.correct_guesses)].correct_guesses / 
-                    results.stats[Object.keys(results.stats).find(id => 
-                    results.stats[id].correct_guesses === results.awards.best_guesser.correct_guesses)].total_guesses) * 100)}%</p>
+    const rankingsList = resultsDiv.querySelector('.rankings-list');
+    rankingsList.innerHTML = '';
+    
+    // Add rankings
+    results.rankings.forEach(r => {
+        const rankItem = document.createElement('div');
+        rankItem.className = 'bg-sky-50 p-4 rounded-lg';
+        rankItem.innerHTML = `
+            <div class="flex justify-between items-center">
+                <div>
+                    <span class="text-2xl font-bold">${r.rank}. ${r.name}</span>
+                    <div class="text-sky-700">Points: ${r.points}</div>
+                    <div class="text-sky-700">Guessing Accuracy: ${Math.round(r.accuracy)}%</div>
+                </div>
+                ${r.awards ? `<div class="text-sky-600 font-semibold">Awards: ${r.awards}</div>` : ''}
             </div>
-            <div class="award-card">
-                <h5>Best Liar</h5>
-                <p>${results.awards.best_liar.name}</p>
-                <p class="award-stat">${results.awards.best_liar.successful_escapes} successful escapes</p>
-                <p class="award-stat-detail">Survival Rate: ${Math.round((results.stats[Object.keys(results.stats).find(id => 
-                    results.stats[id].times_survived === results.awards.best_liar.successful_escapes)].times_survived / 
-                    results.stats[Object.keys(results.stats).find(id => 
-                    results.stats[id].times_survived === results.awards.best_liar.successful_escapes)].times_as_liar) * 100)}%</p>
-            </div>
-            <div class="award-card">
-                <h5>Game Stats</h5>
-                <p>Total Rounds: ${Object.values(results.stats)[0].rounds_played}</p>
-                <p>Total Lies Caught: ${Object.values(results.stats).reduce((sum, player) => sum + player.times_caught, 0)}</p>
-                <p>Total Successful Escapes: ${Object.values(results.stats).reduce((sum, player) => sum + player.times_survived, 0)}</p>
-                <p class="award-stat-detail">Overall Guesser Success Rate: ${Math.round((Object.values(results.stats).reduce((sum, player) => sum + player.correct_guesses, 0) / 
-                    Object.values(results.stats).reduce((sum, player) => sum + player.total_guesses, 0)) * 100)}%</p>
-                <p class="award-stat-detail">Overall Liar Survival Rate: ${Math.round((Object.values(results.stats).reduce((sum, player) => sum + player.times_survived, 0) / 
-                    Object.values(results.stats).reduce((sum, player) => sum + player.times_as_liar, 0)) * 100)}%</p>
-            </div>
+        `;
+        rankingsList.appendChild(rankItem);
+    });
+
+    // Update award cards
+    const guesserCard = resultsDiv.querySelector('.award-card:nth-child(1) .award-content');
+    guesserCard.innerHTML = `
+        <div class="font-semibold">${results.awards.best_guesser.name}</div>
+        <div>${results.awards.best_guesser.correct_guesses} correct guesses</div>
+        <div class="text-sky-600">Success Rate: ${Math.round((results.stats[Object.keys(results.stats).find(id => 
+            results.stats[id].correct_guesses === results.awards.best_guesser.correct_guesses)].correct_guesses / 
+            results.stats[Object.keys(results.stats).find(id => 
+            results.stats[id].correct_guesses === results.awards.best_guesser.correct_guesses)].total_guesses) * 100)}%</div>
+    `;
+
+    const liarCard = resultsDiv.querySelector('.award-card:nth-child(2) .award-content');
+    liarCard.innerHTML = `
+        <div class="font-semibold">${results.awards.best_liar.name}</div>
+        <div>${results.awards.best_liar.successful_escapes} successful escapes</div>
+        <div class="text-sky-600">Survival Rate: ${Math.round((results.stats[Object.keys(results.stats).find(id => 
+            results.stats[id].times_survived === results.awards.best_liar.successful_escapes)].times_survived / 
+            results.stats[Object.keys(results.stats).find(id => 
+            results.stats[id].times_survived === results.awards.best_liar.successful_escapes)].times_as_liar) * 100)}%</div>
+    `;
+
+    const statsCard = resultsDiv.querySelector('.award-card:nth-child(3) .award-content');
+    statsCard.innerHTML = `
+        <div>Total Rounds: ${Object.values(results.stats)[0].rounds_played}</div>
+        <div>Total Lies Caught: ${Object.values(results.stats).reduce((sum, player) => sum + player.times_caught, 0)}</div>
+        <div>Total Successful Escapes: ${Object.values(results.stats).reduce((sum, player) => sum + player.times_survived, 0)}</div>
+        <div class="text-sky-600 mt-2">
+            Overall Guesser Success: ${Math.round((Object.values(results.stats).reduce((sum, player) => sum + player.correct_guesses, 0) / 
+                Object.values(results.stats).reduce((sum, player) => sum + player.total_guesses, 0)) * 100)}%
+        </div>
+        <div class="text-sky-600">
+            Overall Liar Survival: ${Math.round((Object.values(results.stats).reduce((sum, player) => sum + player.times_survived, 0) / 
+                Object.values(results.stats).reduce((sum, player) => sum + player.times_as_liar, 0)) * 100)}%
         </div>
     `;
 });
 
-function getRankEmoji(rank) {
-    switch(rank) {
-        case 1: return '🥇';
-        case 2: return '🥈';
-        case 3: return '🥉';
-        default: return '🎮';
-    }
-}
+// Play again in same room
+document.getElementById('play-again-same-room').addEventListener('click', () => {
+    socket.emit('restart_game', { room_code: roomCode });
+});
 
-// Play again
-document.getElementById('play-again').addEventListener('click', () => {
+// Back to home
+document.getElementById('back-to-home').addEventListener('click', () => {
     window.location.reload();
+});
+
+// Handle game restart
+socket.on('game_restarting', () => {
+    // Show message in game over screen
+    const resultsDiv = document.getElementById('final-results');
+    const restartMessage = document.createElement('div');
+    restartMessage.className = 'text-2xl font-bold text-sky-600 text-center mt-4';
+    restartMessage.textContent = 'Game restarting...';
+    resultsDiv.appendChild(restartMessage);
+});
+
+socket.on('game_restarted', () => {
+    // Reset game state
+    gameOver.style.display = 'none';
+    waitingRoom.style.display = 'block';
+    
+    // Clear previous game messages
+    document.getElementById('game-messages').innerHTML = '';
+    
+    // Reset any game-specific state variables
+    bonusMessageShown = false;
+    
+    // Update waiting room display
+    document.getElementById('room-code-display').textContent = roomCode;
+    
+    // Clear and reset players list
+    const playersList = document.getElementById('players-list');
+    playersList.innerHTML = '';
+    
+    // If host, show start game button
+    if (isHost) {
+        document.getElementById('start-game').style.display = 'block';
+    }
+});
+
+// Handle player rejoining for restart
+socket.on('player_rejoined', (data) => {
+    const playersList = document.getElementById('players-list');
+    
+    // Check if this player is already in the list
+    const existingPlayer = playersList.querySelector(`[data-player-id="${data.player.id}"]`);
+    if (!existingPlayer) {
+        const playerItem = document.createElement('div');
+        playerItem.className = 'player-item';
+        playerItem.setAttribute('data-player-id', data.player.id);
+        playerItem.textContent = `${data.player.name} rejoined the game`;
+        playersList.appendChild(playerItem);
+    }
 });
 
 // Add CSS for the new color classes

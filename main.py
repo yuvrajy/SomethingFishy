@@ -1,4 +1,5 @@
 import random
+from flask_socketio import emit
 
 class Player:
     def __init__(self, id, name, is_guesser=False):
@@ -395,4 +396,44 @@ class GameRoom:
         current_index = player_ids.index(current_guesser.id)
         next_index = (current_index + 1) % len(player_ids)
         return self.players[player_ids[next_index]]
+    
+    def reset_for_restart(self):
+        """Reset the room state but keep players"""
+        self.game_state = {
+            'status': 'waiting',
+            'current_round': 0,
+            'current_guesser': None,
+            'truth_teller': None,
+            'question': None,
+            'answer': None,
+            'guessed_players': [],
+            'scores': {}
+        }
+        for player in self.players.values():
+            player.reset_round()
+
+def handle_restart_game(data):
+    room_code = data['room_code']
+    if room_code not in rooms:
+        return
+    
+    room = rooms[room_code]
+    
+    # Notify all players that game is restarting
+    emit('game_restarting', room=room_code)
+    
+    # Reset room state but keep players
+    room.reset_for_restart()
+    
+    # Notify all players that game has restarted
+    for player_id in room.players:
+        player = room.players[player_id]
+        emit('player_rejoined', {
+            'player': {
+                'id': player_id,
+                'name': player.name
+            }
+        }, room=room_code)
+    
+    emit('game_restarted', room=room_code)
     
