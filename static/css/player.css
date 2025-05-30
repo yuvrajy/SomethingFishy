@@ -1,0 +1,15 @@
+.player-item.correct-guess {
+    background-color: #4CAF50;  /* Green for correct liar guess */
+    color: white;
+    transition: background-color 0.3s ease;
+}
+
+.player-item.truth-teller-guess {
+    background-color: rgb(246, 11, 11);  /* Red for truth-teller */
+    color: white;
+    transition: background-color 0.3s ease;
+}
+
+.player-item.guessed {
+    opacity: 0.8;
+} 

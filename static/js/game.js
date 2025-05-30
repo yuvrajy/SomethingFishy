@@ -353,17 +353,20 @@ function updateGameState(state) {
 
     // Update role with simple description
     const roleSection = document.getElementById('game-info');
-    roleSection.innerHTML = ''; // Clear existing content
+    roleSection.innerHTML = '';
 
     // Add role
+    const roleContainer = document.createElement('div');
+    roleContainer.className = 'space-y-4';
+    
     const roleElem = document.createElement('p');
-    roleElem.id = 'player-role';
-    roleElem.textContent = `Role: ${myPlayer.role}`;
-    roleSection.appendChild(roleElem);
+    roleElem.className = 'text-3xl font-bold text-sky-600';
+    roleElem.innerHTML = `Your Role: <span class="capitalize-first">${myPlayer.role}</span>`;
+    roleContainer.appendChild(roleElem);
 
     // Add hint section under role
     const hintSection = document.createElement('div');
-    hintSection.className = 'hint-section';
+    hintSection.className = 'text-xl text-gray-600 mt-2';
     if (myPlayer.role === 'guesser') {
         hintSection.textContent = "Try to figure out who's lying by asking questions and observing responses.";
     } else if (myPlayer.role === 'truth-teller') {
@@ -371,33 +374,35 @@ function updateGameState(state) {
     } else if (myPlayer.role === 'liar') {
         hintSection.textContent = "You're a liar! Make up a convincing false answer.";
     }
-    roleSection.appendChild(hintSection);
+    roleContainer.appendChild(hintSection);
 
     // Update question and answer
-    const questionElem = document.createElement('p');
-    questionElem.id = 'question';
     if (state.question) {
-        questionElem.textContent = `Question: ${state.question}`;
-        roleSection.appendChild(questionElem);
+        const questionElem = document.createElement('p');
+        questionElem.className = 'text-2xl mt-6';
+        questionElem.innerHTML = `Question: <span class="font-medium">${state.question}</span>`;
+        roleContainer.appendChild(questionElem);
         
         // Add skip question button for guesser
         if (myPlayer.role === 'guesser') {
             const skipButton = document.createElement('button');
             skipButton.textContent = 'Skip Question';
-            skipButton.className = 'skip-button';
+            skipButton.className = 'btn-fishy mt-4';
             skipButton.onclick = () => {
                 socket.emit('skip_question', { room_code: roomCode });
             };
-            roleSection.appendChild(skipButton);
+            roleContainer.appendChild(skipButton);
         }
     }
 
-    if (myPlayer.role !== 'guesser') {
+    if (myPlayer.role !== 'guesser' && state.answer) {
         const answerSection = document.createElement('p');
-        answerSection.id = 'answer-section';
-        answerSection.textContent = `Answer: ${state.answer || ''}`;
-        roleSection.appendChild(answerSection);
+        answerSection.className = 'text-2xl mt-4';
+        answerSection.innerHTML = `Answer: <span class="font-medium">${state.answer}</span>`;
+        roleContainer.appendChild(answerSection);
     }
+
+    roleSection.appendChild(roleContainer);
 
     // Update players list
     const playersList = document.getElementById('players-game-list');
@@ -405,42 +410,53 @@ function updateGameState(state) {
     
     // Add round information
     const roundInfo = document.createElement('div');
-    roundInfo.className = 'round-info';
+    roundInfo.className = 'text-xl font-bold text-sky-600 mb-6';
     roundInfo.textContent = `Round ${state.current_round || 1}`;
     playersList.appendChild(roundInfo);
     
-    // Add other players with guess buttons (back to original functionality)
+    // Add other players
     Object.values(state.players).forEach(player => {
         if (myPlayer.role === 'guesser' && player.id === myPlayerId) {
-            return; // Don't show guesser to themselves
+            return;
         }
 
         const playerItem = document.createElement('div');
-        playerItem.className = 'player-item';
+        playerItem.className = 'mb-4';
         if (player.has_been_guessed) {
-            playerItem.classList.add('guessed');
-        }
-        if (player.is_disconnected) {
-            playerItem.classList.add('disconnected');
+            playerItem.classList.add('opacity-50');
         }
         
         let playerStatus = player.has_been_guessed ? ' (Already Guessed)' : '';
-        let disconnectedStatus = player.is_disconnected ? ' [DC]' : '';
-        playerItem.textContent = `${player.name} - ${player.points} points${playerStatus}${disconnectedStatus}`;
         
-        if (myPlayer.role === 'guesser' && !player.has_been_guessed && !player.is_disconnected) {
+        if (myPlayer.role === 'guesser' && !player.has_been_guessed) {
             const guessButton = document.createElement('button');
-            guessButton.textContent = 'Liar!';
-            const playerId = player.id; // Store player.id in a closure
+            guessButton.className = 'btn-fishy w-full text-left flex items-center justify-between';
+            guessButton.innerHTML = `
+                <span class="flex items-center">
+                    <span class="material-icons mr-2">person</span>
+                    ${player.name}
+                </span>
+                <span class="text-sm">${player.points} points</span>
+            `;
+            const playerId = player.id;
             guessButton.onclick = () => {
                 socket.emit('make_guess', {
                     room_code: roomCode,
                     guessed_player_id: playerId
                 });
-                // Disable the button immediately
                 guessButton.disabled = true;
             };
             playerItem.appendChild(guessButton);
+        } else {
+            playerItem.innerHTML = `
+                <div class="bg-sky-50 rounded-lg p-4 flex items-center justify-between">
+                    <span class="flex items-center">
+                        <span class="material-icons mr-2">person</span>
+                        ${player.name}${playerStatus}
+                    </span>
+                    <span class="text-sm">${player.points} points</span>
+                </div>
+            `;
         }
         
         playersList.appendChild(playerItem);

@@ -1,192 +1,339 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
     <title>Something Fishy</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@400;700&amp;display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet"/>
+    <style>
+        body {
+            font-family: 'Baloo 2', cursive;
+            background-color: #E0F7FA;
+        }
+        .bubble {
+            background-color: rgba(179, 229, 252, 0.7);
+            border-radius: 50%;
+            position: absolute;
+            animation: float 6s ease-in-out infinite;
+        }
+        .bubble-sm { width: 40px; height: 40px; }
+        .bubble-md { width: 60px; height: 60px; }
+        .bubble-lg { width: 80px; height: 80px; }
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+            100% { transform: translateY(0px); }
+        }
+        .btn-fishy {
+            background-color: #4FC3F7;
+            color: white;
+            border-radius: 9999px;
+            padding: 1rem 2rem;
+            font-size: 1.25rem;
+            font-weight: bold;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+            border: 3px solid #29B6F6;
+        }
+        .btn-fishy:hover {
+            background-color: #29B6F6;
+            transform: translateY(-2px) scale(1.05);
+            box-shadow: 0 6px 10px rgba(0, 0, 0, 0.15);
+        }
+        /* Game sections */
+        #create-room-section, #join-room-section, #waiting-room, #game-section, #game-over, #how-to-play-modal {
+            display: none;
+        }
+        .modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100vh;
+            background-color: #E0F7FA;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 50;
+        }
+        .modal-content {
+            width: 100%;
+            height: 100vh;
+            max-width: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+            background: transparent;
+            position: relative;
+        }
+        .modal-inner {
+            background: white;
+            padding: 3rem;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 500px;
+        }
+        .input-fishy {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 2px solid #4FC3F7;
+            border-radius: 0.5rem;
+            margin: 0.5rem 0;
+            font-size: 1.1rem;
+        }
+        .input-fishy:focus {
+            outline: none;
+            border-color: #29B6F6;
+            box-shadow: 0 0 0 3px rgba(79, 195, 247, 0.3);
+        }
+        .capitalize-first {
+            text-transform: capitalize;
+        }
+    </style>
 </head>
-<body>
-    <div class="container">
-        <!-- Landing Page Buttons -->
-        <div id="landing-buttons">
-            <h1>Welcome to Something Fishy!</h1>
-            <button id="create-room-btn">Create Room</button>
-            <button id="join-room-btn">Join Room</button>
-            <button id="how-to-play-btn">How to Play?</button>
+<body class="min-h-screen flex flex-col items-center justify-center relative overflow-hidden">
+    <!-- Landing Page -->
+    <div id="landing-buttons" class="text-center z-10">
+        <div class="absolute left-0 top-0 h-full w-1/6 md:w-1/5 opacity-50">
+            <div class="bubble bubble-lg" style="top: 10%; left: 20%;"></div>
+            <div class="bubble bubble-md" style="top: 30%; left: 50%;"></div>
+            <div class="bubble bubble-sm" style="top: 50%; left: 10%;"></div>
+            <div class="bubble bubble-lg" style="top: 70%; left: 60%;"></div>
+            <div class="bubble bubble-md" style="top: 90%; left: 30%;"></div>
         </div>
 
-        <!-- Create Room Section -->
-        <div id="create-room-section" style="display: none;">
-            <h2>Create Room</h2>
-            <input type="text" id="create-player-name" placeholder="Enter your name">
-            <button id="create-room">Create Room</button>
-            <button id="back-from-create">Back</button>
+        <h1 class="text-6xl md:text-7xl font-bold text-sky-600 mb-12" style="text-shadow: 2px 2px 4px rgba(0,0,0,0.1);">Something Fishy</h1>
+        <div class="space-y-6">
+            <button id="create-room-btn" class="btn-fishy w-64 md:w-80">
+                <span class="material-icons mr-2 align-middle">add_circle_outline</span>
+                Create Room
+            </button>
+            <button id="join-room-btn" class="btn-fishy w-64 md:w-80">
+                <span class="material-icons mr-2 align-middle">login</span>
+                Join Room
+            </button>
+            <button id="how-to-play-btn" class="btn-fishy w-64 md:w-80">
+                <span class="material-icons mr-2 align-middle">help_outline</span>
+                How to play?
+            </button>
         </div>
 
-        <!-- Join Room Section -->
-        <div id="join-room-section" style="display: none;">
-            <h2>Join Room</h2>
-            <input type="text" id="join-player-name" placeholder="Enter your name">
-            <input type="text" id="room-code" placeholder="Enter room code">
-            <button id="join-room">Join Room</button>
-            <button id="back-from-join">Back</button>
+        <div class="absolute right-0 top-0 h-full w-1/6 md:w-1/5 opacity-50">
+            <div class="bubble bubble-md" style="top: 15%; right: 25%;"></div>
+            <div class="bubble bubble-lg" style="top: 35%; right: 55%;"></div>
+            <div class="bubble bubble-sm" style="top: 55%; right: 15%;"></div>
+            <div class="bubble bubble-md" style="top: 75%; right: 65%;"></div>
+            <div class="bubble bubble-lg" style="top: 95%; right: 35%;"></div>
         </div>
+    </div>
 
-        <!-- Waiting Room Section -->
-        <div id="waiting-room" style="display: none;">
-            <h2>Waiting Room</h2>
-            <p>Room Code: <span id="room-code-display"></span></p>
-            <div id="players-list"></div>
-            <button id="start-game" style="display: none;">Start Game</button>
-        </div>
-
-        <!-- Game Section -->
-        <div id="game-section" style="display: none;">
-            <!-- Room Code Display -->
-            <div id="room-code-corner" class="room-code-corner"></div>
-            
-            <div id="game-info">
-                <p>Your Role: <span id="player-role"></span></p>
-                <p>Question: <span id="question"></span></p>
-                <p id="answer-section" style="display: none;">Answer: <span id="answer"></span></p>
-            </div>
-            
-            <!-- Players Board Section -->
-            <div id="players-game-list" class="players-board"></div>
-            
-            <!-- Game Log Section -->
-            <div id="game-messages"></div>
-        </div>
-
-        <!-- Game Over Section -->
-        <div id="game-over" style="display: none;">
-            <h2>Game Over!</h2>
-            <div id="final-results"></div>
-            <button id="play-again">Play Again</button>
-        </div>
-
-        <!-- How to Play Modal -->
-        <div id="how-to-play-modal" class="modal" style="display: none;">
-            <div class="modal-content">
-                <span class="close">&times;</span>
-                <div class="modal-body">
-                    <h1>How to Play "Something Fishy" - The Ultimate Deception Game! 🎭🐟</h1>
-                    
-                    <h2>The Basic Premise</h2>
-                    <p>So here's the deal - "Something Fishy" is all about <strong>lies, truth, and figuring out who's who</strong>. Every round, players get assigned one of three roles, and it's like a psychological chess match where everyone's trying to outsmart everyone else. Think of it as a mix between Mafia, Among Us, and that classic board game where you're trying to figure out which fish is telling the truth!</p>
-
-                    <h2>The Three Sacred Roles 🎭</h2>
-                    
-                    <h3>1. The Guesser (The Detective) 🕵️</h3>
-                    <p>This is THE power role, my friend. You're basically Sherlock Holmes with a mission:</p>
-                    <ul>
-                        <li><strong>Your job</strong>: Figure out who the liars (Red Herrings) are among your group</li>
-                        <li><strong>Your power</strong>: You get to point fingers and accuse people of being liars</li>
-                        <li><strong>Your challenge</strong>: You DON'T get to see the answer to the question, so you have to rely purely on reading people's responses</li>
-                        <li><strong>Your strategy</strong>: Listen carefully to how people answer, watch for hesitation, inconsistencies, or answers that just sound... fishy</li>
-                        <li><strong>Scoring</strong>: You get points for correctly identifying each liar, plus bonus points if you find ALL the liars without accidentally guessing the truth-teller</li>
-                    </ul>
-
-                    <h3>2. The Truth-Teller (The True Blue Kipper) 😇</h3>
-                    <p>You're the beacon of honesty, but with a twist - you're trying to sound UNBELIEVABLE:</p>
-                    <ul>
-                        <li><strong>Your job</strong>: Tell the absolute truth, but make it sound like a lie</li>
-                        <li><strong>Your power</strong>: You have the real answer and must share it accurately</li>
-                        <li><strong>Your challenge</strong>: Make the truth sound so ridiculous that the guesser thinks you're lying</li>
-                        <li><strong>Your strategy</strong>: Deliver the real answer with uncertainty, hesitation, or in a way that sounds made-up</li>
-                        <li><strong>Scoring</strong>: You get points when you successfully fool the guesser into thinking you're a liar - the more people they guess before you, the more points you get!</li>
-                    </ul>
-
-                    <h3>3. The Liar (The Red Herring) 😈</h3>
-                    <p>This is where the real fun begins - you're the chaos agent:</p>
-                    <ul>
-                        <li><strong>Your job</strong>: Make up a convincing fake answer that sounds more believable than the truth</li>
-                        <li><strong>Your power</strong>: Pure creativity and the art of deception</li>
-                        <li><strong>Your challenge</strong>: Sound so believable that the guesser thinks YOU'RE the truth-teller</li>
-                        <li><strong>Your strategy</strong>: Create plausible lies that sound more reasonable than whatever weird truth is actually on the card</li>
-                        <li><strong>Scoring</strong>: You get points for surviving each round - the longer you last without being caught, the more points you rack up</li>
-                    </ul>
-
-                    <h2>How a Round Actually Works 🎯</h2>
-                    <ol>
-                        <li><strong>Question Time</strong>: Everyone gets the same wonderfully weird trivia question (like "What did the U.S. government issue to Santa Claus?")</li>
-                        <li><strong>Role Assignment</strong>: The game secretly assigns roles - most players become Red Herrings (liars), one becomes the True Blue Kipper (truth-teller), and one becomes the guesser</li>
-                        <li><strong>Answer Reveal</strong>: Truth-tellers and liars see the real answer, but the guesser is left completely in the dark</li>
-                        <li><strong>The Performance</strong>: Here's where the magic happens!
-                            <ul>
-                                <li><strong>Liars</strong> craft believable fake answers</li>
-                                <li><strong>Truth-teller</strong> delivers the real answer but tries to make it sound fake</li>
-                                <li><strong>Guesser</strong> listens and tries to figure out what's going on</li>
-                            </ul>
-                        </li>
-                        <li><strong>The Hunt</strong>: The guesser makes accusations one by one, trying to eliminate all the liars without accidentally catching the truth-teller</li>
-                        <li><strong>The Reveal</strong>: Success means points for everyone! Failure means the guesser loses everything!</li>
-                    </ol>
-
-                    <h2>The Scoring System 🏆</h2>
-                    <p><strong>Guessers</strong>:</p>
-                    <ul>
-                        <li>Get points for each liar they correctly identify</li>
-                        <li>Bonus points if they catch ALL the liars without falling for the truth-teller</li>
-                        <li>But if they accidentally guess the truth-teller, they lose EVERYTHING for that round</li>
-                    </ul>
-
-                    <p><strong>Truth-Tellers (True Blue Kippers)</strong>:</p>
-                    <ul>
-                        <li>Get points based on how many people the guesser eliminates before getting to them</li>
-                        <li>The longer they fool the guesser, the more points they earn</li>
-                        <li>They're literally rewarded for successful deception while telling the truth</li>
-                    </ul>
-
-                    <p><strong>Liars (Red Herrings)</strong>:</p>
-                    <ul>
-                        <li>Get points for each round they survive without being caught</li>
-                        <li>The goal is pure survival - last as long as possible</li>
-                        <li>If caught, they're out for that round but can still earn points based on when they were eliminated</li>
-                    </ul>
-
-                    <h2>Pro Tips for Domination 💪</h2>
-                    
-                    <h3>Guesser Strategies:</h3>
-                    <ul>
-                        <li>The most confident, reasonable-sounding answer might be the lie</li>
-                        <li>Look for people who seem like they're trying too hard to convince you</li>
-                        <li>Remember: the truth-teller is ACTIVELY trying to fool you</li>
-                        <li>Sometimes go with your gut over logic - the truth can be stranger than fiction</li>
-                    </ul>
-
-                    <h3>Truth-Teller Strategies:</h3>
-                    <ul>
-                        <li>Act like you're unsure or making something up</li>
-                        <li>Deliver the real answer with hesitation or uncertainty</li>
-                        <li>Make it sound like you're guessing or pulling it out of thin air</li>
-                        <li>The weirder the real answer, the easier your job becomes</li>
-                    </ul>
-
-                    <h3>Liar Strategies:</h3>
-                    <ul>
-                        <li>Sound confident and knowledgeable</li>
-                        <li>Create lies that are more believable than the actual truth</li>
-                        <li>Act like you definitely know what you're talking about</li>
-                        <li>Make your fake answer sound well-researched and logical</li>
-                    </ul>
-
-                    <h2>Why This Game Is Brilliant 🧩</h2>
-                    <ul>
-                        <li><strong>Role Reversal</strong>: Truth-tellers trying to sound like liars creates amazing psychological tension</li>
-                        <li><strong>No elimination</strong>: Everyone plays every round with rotating roles</li>
-                        <li><strong>Scalable complexity</strong>: Simple rules but deep psychological gameplay</li>
-                        <li><strong>Perfect questions</strong>: The trivia is weird enough that lies often sound more reasonable than truth</li>
-                        <li><strong>Balanced scoring</strong>: Everyone has a path to victory regardless of their role</li>
-                        <li><strong>Social revelation</strong>: You'll discover who's naturally suspicious and who can sell anything</li>
-                    </ul>
-
-                    <p><strong>Final Thoughts:</strong> "Something Fishy" is a masterclass in psychological game design. It takes the classic "find the liar" concept and flips it on its head by making the truth-teller actively participate in the deception. So grab your friends, prepare to question everything you thought you knew about truth and lies, and dive into the delightfully murky waters where being honest means learning how to lie! 🎣</p>
+    <!-- Create Room Section -->
+    <div id="create-room-section" class="modal">
+        <div class="modal-content">
+            <div class="modal-inner">
+                <h2 class="text-4xl font-bold text-sky-600 mb-8">Create Room</h2>
+                <input type="text" id="create-player-name" class="input-fishy text-xl" placeholder="Enter your name">
+                <div class="flex gap-4 mt-8 w-full">
+                    <button id="create-room" class="btn-fishy flex-1">Create</button>
+                    <button id="back-from-create" class="btn-fishy flex-1 bg-gray-400 border-gray-500">Back</button>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- Join Room Section -->
+    <div id="join-room-section" class="modal">
+        <div class="modal-content">
+            <div class="modal-inner">
+                <h2 class="text-4xl font-bold text-sky-600 mb-8">Join Room</h2>
+                <input type="text" id="join-player-name" class="input-fishy text-xl mb-4" placeholder="Enter your name">
+                <input type="text" id="room-code" class="input-fishy text-xl" placeholder="Enter room code">
+                <div class="flex gap-4 mt-8 w-full">
+                    <button id="join-room" class="btn-fishy flex-1">Join</button>
+                    <button id="back-from-join" class="btn-fishy flex-1 bg-gray-400 border-gray-500">Back</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Waiting Room Section -->
+    <div id="waiting-room" class="fixed inset-0 bg-sky-50 z-20">
+        <div class="h-full w-full flex items-center justify-center p-4">
+            <div class="bg-white rounded-lg shadow-xl p-8 max-w-2xl w-full">
+                <h2 class="text-4xl font-bold text-sky-600 mb-8">Waiting Room</h2>
+                <div class="bg-sky-50 rounded-lg p-6 mb-8">
+                    <p class="text-2xl">Room Code: <span id="room-code-display" class="font-bold text-sky-700"></span></p>
+                    <p class="text-lg text-gray-600 mt-3">Share this code with your friends to join!</p>
+                </div>
+                <div id="players-list" class="space-y-4 mb-8 max-h-[50vh] overflow-y-auto"></div>
+                <button id="start-game" class="btn-fishy w-full" style="display: none;">Start Game</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Section -->
+    <div id="game-section" class="fixed inset-0 bg-sky-50 z-20 p-6">
+        <div class="max-w-6xl mx-auto h-full flex flex-col">
+            <div id="room-code-corner" class="absolute top-4 right-4 bg-sky-100 px-4 py-2 rounded-full text-sky-700 text-lg"></div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 flex-grow">
+                <div class="md:col-span-2 space-y-6">
+                    <div id="game-info" class="bg-white rounded-lg shadow-lg p-8">
+                        <div class="space-y-4">
+                            <p class="text-3xl font-bold text-sky-600">Your Role: <span id="player-role" class="capitalize-first"></span></p>
+                            <p class="text-2xl mt-6">Question: <span id="question" class="font-medium"></span></p>
+                            <p id="answer-section" class="text-2xl mt-4" style="display: none;">Answer: <span id="answer" class="font-medium"></span></p>
+                        </div>
+                    </div>
+                    <div id="game-messages" class="bg-white rounded-lg shadow-lg p-6 h-[calc(100vh-400px)] overflow-y-auto"></div>
+                </div>
+                <div class="bg-white rounded-lg shadow-lg p-8 h-full overflow-y-auto">
+                    <h3 class="text-2xl font-bold text-sky-600 mb-6">Who do you think is lying?</h3>
+                    <div id="players-game-list" class="space-y-4"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Game Over Section -->
+    <div id="game-over" class="fixed inset-0 bg-sky-50 z-20 flex items-center justify-center">
+        <div class="bg-white rounded-lg shadow-xl p-8 max-w-4xl w-full mx-4">
+            <h2 class="text-3xl font-bold text-sky-600 mb-6">Game Over!</h2>
+            <div id="final-results" class="mb-6"></div>
+            <button id="play-again" class="btn-fishy w-full">Play Again</button>
+        </div>
+    </div>
+
+    <!-- How to Play Modal -->
+    <div id="how-to-play-modal" class="modal">
+        <div class="modal-content">
+            <button class="close absolute top-4 right-4 text-gray-500 hover:text-gray-700">
+                <span class="material-icons">close</span>
+            </button>
+            <div class="modal-body">
+                <h1>How to Play "Something Fishy" - The Ultimate Deception Game! 🎭🐟</h1>
+                
+                <h2>The Basic Premise</h2>
+                <p>So here's the deal - "Something Fishy" is all about <strong>lies, truth, and figuring out who's who</strong>. Every round, players get assigned one of three roles, and it's like a psychological chess match where everyone's trying to outsmart everyone else. Think of it as a mix between Mafia, Among Us, and that classic board game where you're trying to figure out which fish is telling the truth!</p>
+
+                <h2>The Three Sacred Roles 🎭</h2>
+                
+                <h3>1. The Guesser (The Detective) 🕵️</h3>
+                <p>This is THE power role, my friend. You're basically Sherlock Holmes with a mission:</p>
+                <ul>
+                    <li><strong>Your job</strong>: Figure out who the liars (Red Herrings) are among your group</li>
+                    <li><strong>Your power</strong>: You get to point fingers and accuse people of being liars</li>
+                    <li><strong>Your challenge</strong>: You DON'T get to see the answer to the question, so you have to rely purely on reading people's responses</li>
+                    <li><strong>Your strategy</strong>: Listen carefully to how people answer, watch for hesitation, inconsistencies, or answers that just sound... fishy</li>
+                    <li><strong>Scoring</strong>: You get points for correctly identifying each liar, plus bonus points if you find ALL the liars without accidentally guessing the truth-teller</li>
+                </ul>
+
+                <h3>2. The Truth-Teller (The True Blue Kipper) 😇</h3>
+                <p>You're the beacon of honesty, but with a twist - you're trying to sound UNBELIEVABLE:</p>
+                <ul>
+                    <li><strong>Your job</strong>: Tell the absolute truth, but make it sound like a lie</li>
+                    <li><strong>Your power</strong>: You have the real answer and must share it accurately</li>
+                    <li><strong>Your challenge</strong>: Make the truth sound so ridiculous that the guesser thinks you're lying</li>
+                    <li><strong>Your strategy</strong>: Deliver the real answer with uncertainty, hesitation, or in a way that sounds made-up</li>
+                    <li><strong>Scoring</strong>: You get points when you successfully fool the guesser into thinking you're a liar - the more people they guess before you, the more points you get!</li>
+                </ul>
+
+                <h3>3. The Liar (The Red Herring) 😈</h3>
+                <p>This is where the real fun begins - you're the chaos agent:</p>
+                <ul>
+                    <li><strong>Your job</strong>: Make up a convincing fake answer that sounds more believable than the truth</li>
+                    <li><strong>Your power</strong>: Pure creativity and the art of deception</li>
+                    <li><strong>Your challenge</strong>: Sound so believable that the guesser thinks YOU'RE the truth-teller</li>
+                    <li><strong>Your strategy</strong>: Create plausible lies that sound more reasonable than whatever weird truth is actually on the card</li>
+                    <li><strong>Scoring</strong>: You get points for surviving each round - the longer you last without being caught, the more points you rack up</li>
+                </ul>
+
+                <h2>How a Round Actually Works 🎯</h2>
+                <ol>
+                    <li><strong>Question Time</strong>: Everyone gets the same wonderfully weird trivia question (like "What did the U.S. government issue to Santa Claus?")</li>
+                    <li><strong>Role Assignment</strong>: The game secretly assigns roles - most players become Red Herrings (liars), one becomes the True Blue Kipper (truth-teller), and one becomes the guesser</li>
+                    <li><strong>Answer Reveal</strong>: Truth-tellers and liars see the real answer, but the guesser is left completely in the dark</li>
+                    <li><strong>The Performance</strong>: Here's where the magic happens!
+                        <ul>
+                            <li><strong>Liars</strong> craft believable fake answers</li>
+                            <li><strong>Truth-teller</strong> delivers the real answer but tries to make it sound fake</li>
+                            <li><strong>Guesser</strong> listens and tries to figure out what's going on</li>
+                        </ul>
+                    </li>
+                    <li><strong>The Hunt</strong>: The guesser makes accusations one by one, trying to eliminate all the liars without accidentally catching the truth-teller</li>
+                    <li><strong>The Reveal</strong>: Success means points for everyone! Failure means the guesser loses everything!</li>
+                </ol>
+
+                <h2>The Scoring System 🏆</h2>
+                <p><strong>Guessers</strong>:</p>
+                <ul>
+                    <li>Get points for each liar they correctly identify</li>
+                    <li>Bonus points if they catch ALL the liars without falling for the truth-teller</li>
+                    <li>But if they accidentally guess the truth-teller, they lose EVERYTHING for that round</li>
+                </ul>
+
+                <p><strong>Truth-Tellers (True Blue Kippers)</strong>:</p>
+                <ul>
+                    <li>Get points based on how many people the guesser eliminates before getting to them</li>
+                    <li>The longer they fool the guesser, the more points they earn</li>
+                    <li>They're literally rewarded for successful deception while telling the truth</li>
+                </ul>
+
+                <p><strong>Liars (Red Herrings)</strong>:</p>
+                <ul>
+                    <li>Get points for each round they survive without being caught</li>
+                    <li>The goal is pure survival - last as long as possible</li>
+                    <li>If caught, they're out for that round but can still earn points based on when they were eliminated</li>
+                </ul>
+
+                <h2>Pro Tips for Domination 💪</h2>
+                
+                <h3>Guesser Strategies:</h3>
+                <ul>
+                    <li>The most confident, reasonable-sounding answer might be the lie</li>
+                    <li>Look for people who seem like they're trying too hard to convince you</li>
+                    <li>Remember: the truth-teller is ACTIVELY trying to fool you</li>
+                    <li>Sometimes go with your gut over logic - the truth can be stranger than fiction</li>
+                </ul>
+
+                <h3>Truth-Teller Strategies:</h3>
+                <ul>
+                    <li>Act like you're unsure or making something up</li>
+                    <li>Deliver the real answer with hesitation or uncertainty</li>
+                    <li>Make it sound like you're guessing or pulling it out of thin air</li>
+                    <li>The weirder the real answer, the easier your job becomes</li>
+                </ul>
+
+                <h3>Liar Strategies:</h3>
+                <ul>
+                    <li>Sound confident and knowledgeable</li>
+                    <li>Create lies that are more believable than the actual truth</li>
+                    <li>Act like you definitely know what you're talking about</li>
+                    <li>Make your fake answer sound well-researched and logical</li>
+                </ul>
+
+                <h2>Why This Game Is Brilliant 🧩</h2>
+                <ul>
+                    <li><strong>Role Reversal</strong>: Truth-tellers trying to sound like liars creates amazing psychological tension</li>
+                    <li><strong>No elimination</strong>: Everyone plays every round with rotating roles</li>
+                    <li><strong>Scalable complexity</strong>: Simple rules but deep psychological gameplay</li>
+                    <li><strong>Perfect questions</strong>: The trivia is weird enough that lies often sound more reasonable than truth</li>
+                    <li><strong>Balanced scoring</strong>: Everyone has a path to victory regardless of their role</li>
+                    <li><strong>Social revelation</strong>: You'll discover who's naturally suspicious and who can sell anything</li>
+                </ul>
+
+                <p><strong>Final Thoughts:</strong> "Something Fishy" is a masterclass in psychological game design. It takes the classic "find the liar" concept and flips it on its head by making the truth-teller actively participate in the deception. So grab your friends, prepare to question everything you thought you knew about truth and lies, and dive into the delightfully murky waters where being honest means learning how to lie! 🎣</p>
+            </div>
+        </div>
+    </div>
+
+    <footer class="absolute bottom-4 text-sm text-sky-500">
+        Created by Yuvi Toovi
+    </footer>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.min.js" integrity="sha512-Xm9qbB6Pu06k3PUwPj785dyTl6oHxgsv9nHp7ej7nCpAqGZT3OZpsELuCYX05DdonFpTlBpXMOxjavIAIUwr0w==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script src="{{ url_for('static', filename='js/game.js') }}"></script>
