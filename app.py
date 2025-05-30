@@ -18,7 +18,8 @@ socketio = SocketIO(app,
                    ping_timeout=60,
                    ping_interval=25,
                    logger=True,
-                   engineio_logger=True)
+                   engineio_logger=True,
+                   path='/socket.io')
 
 # Store active game rooms
 game_rooms = {}

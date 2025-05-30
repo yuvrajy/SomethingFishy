@@ -4,7 +4,8 @@ const socket = io({
     upgrade: false,
     reconnection: true,
     reconnectionAttempts: 5,
-    reconnectionDelay: 1000
+    reconnectionDelay: 1000,
+    path: '/socket.io'
 });
 
 // Game state
