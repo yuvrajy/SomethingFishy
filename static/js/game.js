@@ -23,6 +23,11 @@ const waitingRoom = document.getElementById('waiting-room');
 const gameSection = document.getElementById('game-section');
 const gameOver = document.getElementById('game-over');
 
+// Debug logging for Socket.IO events
+socket.onAny((event, ...args) => {
+    console.log(`Socket.IO Event: ${event}`, args);
+});
+
 // Landing page button handlers
 document.getElementById('create-room-btn').addEventListener('click', () => {
     landingButtons.style.display = 'none';
@@ -65,7 +70,7 @@ window.addEventListener('click', (event) => {
 
 // Connection handling
 socket.on('connect', () => {
-    console.log('Connected to server');
+    console.log('Connected to server with ID:', socket.id);
 });
 
 socket.on('connect_error', (error) => {
@@ -285,6 +290,9 @@ socket.on('game_resumed', (data) => {
 
 // Start game
 document.getElementById('start-game').addEventListener('click', () => {
+    console.log('Start game button clicked');
+    console.log('Room code:', roomCode);
+    console.log('Is host:', isHost);
     socket.emit('start_game', { room_code: roomCode });
 });
 
