@@ -11,9 +11,20 @@ monkey.patch_all()
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 app.config['SECRET_KEY'] = 'something_fishy_secret!'
-CORS(app, resources={r"/*": {"origins": "*"}})
+
+# Configure CORS to only allow specific domains
+allowed_origins = [
+    "https://superfishy.com",
+    "https://www.superfishy.com", 
+    "http://localhost:5000",
+    "http://localhost:5001",
+    "http://127.0.0.1:5000",
+    "http://127.0.0.1:5001"
+]
+
+CORS(app, resources={r"/*": {"origins": allowed_origins}})
 socketio = SocketIO(app, 
-                   cors_allowed_origins="*",
+                   cors_allowed_origins=allowed_origins,
                    async_mode='gevent',
                    ping_timeout=60,
                    ping_interval=25,
