@@ -39,12 +39,12 @@ game_rooms = {}
 player_sessions = {}
 
 def generate_room_code():
-    """Generate a unique 4-letter room code, excluding confusing letters (O, I)"""
+    """Generate a unique 6-letter room code, excluding confusing letters (O, I)"""
     # Define allowed characters (uppercase letters excluding O and I)
     allowed_chars = ''.join(c for c in string.ascii_uppercase if c not in 'OI')
     
     while True:
-        code = ''.join(random.choices(allowed_chars, k=4))
+        code = ''.join(random.choices(allowed_chars, k=6))
         if code not in game_rooms:
             return code
 
