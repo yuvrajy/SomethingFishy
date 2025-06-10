@@ -4,7 +4,8 @@ const socket = io({
     upgrade: false,
     reconnection: true,
     reconnectionAttempts: 5,
-    reconnectionDelay: 1000
+    reconnectionDelay: 1000,
+    path: '/socket.io'
 });
 
 // Game state
@@ -21,6 +22,11 @@ const joinRoomSection = document.getElementById('join-room-section');
 const waitingRoom = document.getElementById('waiting-room');
 const gameSection = document.getElementById('game-section');
 const gameOver = document.getElementById('game-over');
+
+// Debug logging for Socket.IO events
+socket.onAny((event, ...args) => {
+    console.log(`Socket.IO Event: ${event}`, args);
+});
 
 // Landing page button handlers
 document.getElementById('create-room-btn').addEventListener('click', () => {
@@ -64,7 +70,7 @@ window.addEventListener('click', (event) => {
 
 // Connection handling
 socket.on('connect', () => {
-    console.log('Connected to server');
+    console.log('Connected to server with ID:', socket.id);
 });
 
 socket.on('connect_error', (error) => {
@@ -100,6 +106,7 @@ document.getElementById('create-room').addEventListener('click', () => {
         return;
     }
 
+    console.log('Creating room for player:', playerName);
     fetch('/create_room', {
         method: 'POST',
         headers: {
@@ -115,7 +122,12 @@ document.getElementById('create-room').addEventListener('click', () => {
         }
         roomCode = data.room_code;
         isHost = true;
+        console.log('Room created successfully. Room code:', roomCode, 'Is host:', isHost);
         joinGame();
+    })
+    .catch(error => {
+        console.error('Error creating room:', error);
+        alert('Error creating room. Please try again.');
     });
 });
 
@@ -205,11 +217,13 @@ function joinGame() {
 
 // Handle player joined
 socket.on('player_joined', (data) => {
+    console.log('Player joined event received:', data);
     const playersList = document.getElementById('players-list');
     
     // Check if this player is already in the list
     const existingPlayer = playersList.querySelector(`[data-player-id="${data.player.id}"]`);
     if (existingPlayer) {
+        console.log('Player already in list:', data.player.name);
         return; // Skip if player already shown
     }
     
@@ -220,7 +234,15 @@ socket.on('player_joined', (data) => {
     playersList.appendChild(playerItem);
     
     if (isHost) {
-        document.getElementById('start-game').style.display = 'block';
+        console.log('Current player is host, showing start button');
+        const startButton = document.getElementById('start-game');
+        if (startButton) {
+            startButton.style.display = 'block';
+        } else {
+            console.error('Start game button not found in DOM');
+        }
+    } else {
+        console.log('Current player is not host');
     }
 });
 
@@ -282,9 +304,32 @@ socket.on('game_resumed', (data) => {
     }
 });
 
-// Start game
-document.getElementById('start-game').addEventListener('click', () => {
-    socket.emit('start_game', { room_code: roomCode });
+// Initialize start game button event listener
+document.addEventListener('DOMContentLoaded', () => {
+    const startButton = document.getElementById('start-game');
+    if (startButton) {
+        startButton.addEventListener('click', () => {
+            console.log('Start game button clicked');
+            console.log('Current state - Room code:', roomCode, 'Is host:', isHost);
+            
+            if (!roomCode) {
+                console.error('No room code available');
+                alert('Error: Room code not found');
+                return;
+            }
+            
+            if (!isHost) {
+                console.error('Non-host player trying to start game');
+                alert('Only the host can start the game');
+                return;
+            }
+            
+            console.log('Emitting start_game event');
+            socket.emit('start_game', { room_code: roomCode });
+        });
+    } else {
+        console.error('Start game button not found during initialization');
+    }
 });
 
 function addGameMessage(message, type = 'info') {
@@ -313,8 +358,9 @@ function addGameMessage(message, type = 'info') {
     }, 10);
 }
 
-// Game started
+// Handle game started event
 socket.on('game_started', (state) => {
+    console.log('Game started event received:', state);
     waitingRoom.style.display = 'none';
     gameSection.style.display = 'block';
     myPlayerId = state.player_id;
@@ -322,7 +368,9 @@ socket.on('game_started', (state) => {
     
     // Display room code in corner
     const roomCodeCorner = document.getElementById('room-code-corner');
-    roomCodeCorner.textContent = roomCode;
+    if (roomCodeCorner) {
+        roomCodeCorner.textContent = roomCode;
+    }
     
     addGameMessage('Game has started!', 'system');
     updateGameState(state);
@@ -353,17 +401,20 @@ function updateGameState(state) {
 
     // Update role with simple description
     const roleSection = document.getElementById('game-info');
-    roleSection.innerHTML = ''; // Clear existing content
+    roleSection.innerHTML = '';
 
     // Add role
+    const roleContainer = document.createElement('div');
+    roleContainer.className = 'space-y-4';
+    
     const roleElem = document.createElement('p');
-    roleElem.id = 'player-role';
-    roleElem.textContent = `Role: ${myPlayer.role}`;
-    roleSection.appendChild(roleElem);
+    roleElem.className = 'text-3xl font-bold text-sky-600';
+    roleElem.innerHTML = `Your Role: <span class="capitalize-first">${myPlayer.role}</span>`;
+    roleContainer.appendChild(roleElem);
 
     // Add hint section under role
     const hintSection = document.createElement('div');
-    hintSection.className = 'hint-section';
+    hintSection.className = 'text-xl text-gray-600 mt-2';
     if (myPlayer.role === 'guesser') {
         hintSection.textContent = "Try to figure out who's lying by asking questions and observing responses.";
     } else if (myPlayer.role === 'truth-teller') {
@@ -371,33 +422,35 @@ function updateGameState(state) {
     } else if (myPlayer.role === 'liar') {
         hintSection.textContent = "You're a liar! Make up a convincing false answer.";
     }
-    roleSection.appendChild(hintSection);
+    roleContainer.appendChild(hintSection);
 
     // Update question and answer
-    const questionElem = document.createElement('p');
-    questionElem.id = 'question';
     if (state.question) {
-        questionElem.textContent = `Question: ${state.question}`;
-        roleSection.appendChild(questionElem);
+        const questionElem = document.createElement('p');
+        questionElem.className = 'text-2xl mt-6';
+        questionElem.innerHTML = `Question: <span class="font-medium">${state.question}</span>`;
+        roleContainer.appendChild(questionElem);
         
         // Add skip question button for guesser
         if (myPlayer.role === 'guesser') {
             const skipButton = document.createElement('button');
             skipButton.textContent = 'Skip Question';
-            skipButton.className = 'skip-button';
+            skipButton.className = 'btn-fishy mt-4';
             skipButton.onclick = () => {
                 socket.emit('skip_question', { room_code: roomCode });
             };
-            roleSection.appendChild(skipButton);
+            roleContainer.appendChild(skipButton);
         }
     }
 
-    if (myPlayer.role !== 'guesser') {
+    if (myPlayer.role !== 'guesser' && state.answer) {
         const answerSection = document.createElement('p');
-        answerSection.id = 'answer-section';
-        answerSection.textContent = `Answer: ${state.answer || ''}`;
-        roleSection.appendChild(answerSection);
+        answerSection.className = 'text-2xl mt-4';
+        answerSection.innerHTML = `Answer: <span class="font-medium">${state.answer}</span>`;
+        roleContainer.appendChild(answerSection);
     }
+
+    roleSection.appendChild(roleContainer);
 
     // Update players list
     const playersList = document.getElementById('players-game-list');
@@ -405,42 +458,53 @@ function updateGameState(state) {
     
     // Add round information
     const roundInfo = document.createElement('div');
-    roundInfo.className = 'round-info';
+    roundInfo.className = 'text-xl font-bold text-sky-600 mb-6';
     roundInfo.textContent = `Round ${state.current_round || 1}`;
     playersList.appendChild(roundInfo);
     
-    // Add other players with guess buttons (back to original functionality)
+    // Add other players
     Object.values(state.players).forEach(player => {
         if (myPlayer.role === 'guesser' && player.id === myPlayerId) {
-            return; // Don't show guesser to themselves
+            return;
         }
 
         const playerItem = document.createElement('div');
-        playerItem.className = 'player-item';
+        playerItem.className = 'mb-4';
         if (player.has_been_guessed) {
-            playerItem.classList.add('guessed');
-        }
-        if (player.is_disconnected) {
-            playerItem.classList.add('disconnected');
+            playerItem.classList.add('opacity-50');
         }
         
         let playerStatus = player.has_been_guessed ? ' (Already Guessed)' : '';
-        let disconnectedStatus = player.is_disconnected ? ' [DC]' : '';
-        playerItem.textContent = `${player.name} - ${player.points} points${playerStatus}${disconnectedStatus}`;
         
-        if (myPlayer.role === 'guesser' && !player.has_been_guessed && !player.is_disconnected) {
+        if (myPlayer.role === 'guesser' && !player.has_been_guessed) {
             const guessButton = document.createElement('button');
-            guessButton.textContent = 'Liar!';
-            const playerId = player.id; // Store player.id in a closure
+            guessButton.className = 'btn-fishy w-full text-left flex items-center justify-between';
+            guessButton.innerHTML = `
+                <span class="flex items-center">
+                    <span class="material-icons mr-2">person</span>
+                    ${player.name}
+                </span>
+                <span class="text-sm">${player.points} points</span>
+            `;
+            const playerId = player.id;
             guessButton.onclick = () => {
                 socket.emit('make_guess', {
                     room_code: roomCode,
                     guessed_player_id: playerId
                 });
-                // Disable the button immediately
                 guessButton.disabled = true;
             };
             playerItem.appendChild(guessButton);
+        } else {
+            playerItem.innerHTML = `
+                <div class="bg-sky-50 rounded-lg p-4 flex items-center justify-between">
+                    <span class="flex items-center">
+                        <span class="material-icons mr-2">person</span>
+                        ${player.name}${playerStatus}
+                    </span>
+                    <span class="text-sm">${player.points} points</span>
+                </div>
+            `;
         }
         
         playersList.appendChild(playerItem);
@@ -519,93 +583,125 @@ socket.on('new_round', (state) => {
 
 // Game over
 socket.on('game_over', (results) => {
-    // Add awards to game feed first
-    const messagesDiv = document.getElementById('game-messages');
-    
-    // Add a separator
-    const separator = document.createElement('div');
-    separator.className = 'message system';
-    separator.innerHTML = '🏆 Game Over! Final Awards 🏆';
-    messagesDiv.appendChild(separator);
-    
-    // Add Best Guesser award
-    const guesserAward = document.createElement('div');
-    guesserAward.className = 'message award';
-    guesserAward.innerHTML = `🎯 Best Guesser: ${results.awards.best_guesser.name} (${results.awards.best_guesser.correct_guesses} correct guesses)`;
-    messagesDiv.appendChild(guesserAward);
-    
-    // Add Best Liar award
-    const liarAward = document.createElement('div');
-    liarAward.className = 'message award';
-    liarAward.innerHTML = `🎭 Best Liar: ${results.awards.best_liar.name} (${results.awards.best_liar.successful_escapes} successful escapes)`;
-    messagesDiv.appendChild(liarAward);
-    
-    // Auto-scroll to show awards
-    setTimeout(() => {
-        messagesDiv.scrollTop = messagesDiv.scrollHeight;
-    }, 100);
-    
-    // Show the final results screen
+    // Hide game section and show game over
     gameSection.style.display = 'none';
     gameOver.style.display = 'block';
     
     const resultsDiv = document.getElementById('final-results');
-    resultsDiv.innerHTML = `
-        <h3>🏆 Game Over - ${results.winner} Wins!</h3>
-        <h4>Final Rankings:</h4>
-        ${results.rankings.map(r => `
-            <p>${getRankEmoji(r.rank)} ${r.rank}. ${r.name}
-               <br>Points: ${r.points}
-               <br>Guessing Accuracy: ${Math.round(r.accuracy)}%
-               ${r.awards ? `<br>🏅 Awards: ${r.awards}` : ''}
-            </p>
-        `).join('')}
-        <div class="awards-section">
-            <h4>Game Awards</h4>
-            <div class="award-card">
-                <h5>Best Guesser</h5>
-                <p>${results.awards.best_guesser.name}</p>
-                <p class="award-stat">${results.awards.best_guesser.correct_guesses} correct guesses</p>
-                <p class="award-stat-detail">Success Rate: ${Math.round((results.stats[Object.keys(results.stats).find(id => 
-                    results.stats[id].correct_guesses === results.awards.best_guesser.correct_guesses)].correct_guesses / 
-                    results.stats[Object.keys(results.stats).find(id => 
-                    results.stats[id].correct_guesses === results.awards.best_guesser.correct_guesses)].total_guesses) * 100)}%</p>
+    const rankingsList = resultsDiv.querySelector('.rankings-list');
+    rankingsList.innerHTML = '';
+    
+    // Add rankings
+    results.rankings.forEach(r => {
+        const rankItem = document.createElement('div');
+        rankItem.className = 'bg-sky-50 p-4 rounded-lg';
+        rankItem.innerHTML = `
+            <div class="flex justify-between items-center">
+                <div>
+                    <span class="text-2xl font-bold">${r.rank}. ${r.name}</span>
+                    <div class="text-sky-700">Points: ${r.points}</div>
+                    <div class="text-sky-700">Guessing Accuracy: ${Math.round(r.accuracy)}%</div>
+                </div>
+                ${r.awards ? `<div class="text-sky-600 font-semibold">Awards: ${r.awards}</div>` : ''}
             </div>
-            <div class="award-card">
-                <h5>Best Liar</h5>
-                <p>${results.awards.best_liar.name}</p>
-                <p class="award-stat">${results.awards.best_liar.successful_escapes} successful escapes</p>
-                <p class="award-stat-detail">Survival Rate: ${Math.round((results.stats[Object.keys(results.stats).find(id => 
-                    results.stats[id].times_survived === results.awards.best_liar.successful_escapes)].times_survived / 
-                    results.stats[Object.keys(results.stats).find(id => 
-                    results.stats[id].times_survived === results.awards.best_liar.successful_escapes)].times_as_liar) * 100)}%</p>
-            </div>
-            <div class="award-card">
-                <h5>Game Stats</h5>
-                <p>Total Rounds: ${Object.values(results.stats)[0].rounds_played}</p>
-                <p>Total Lies Caught: ${Object.values(results.stats).reduce((sum, player) => sum + player.times_caught, 0)}</p>
-                <p>Total Successful Escapes: ${Object.values(results.stats).reduce((sum, player) => sum + player.times_survived, 0)}</p>
-                <p class="award-stat-detail">Overall Guesser Success Rate: ${Math.round((Object.values(results.stats).reduce((sum, player) => sum + player.correct_guesses, 0) / 
-                    Object.values(results.stats).reduce((sum, player) => sum + player.total_guesses, 0)) * 100)}%</p>
-                <p class="award-stat-detail">Overall Liar Survival Rate: ${Math.round((Object.values(results.stats).reduce((sum, player) => sum + player.times_survived, 0) / 
-                    Object.values(results.stats).reduce((sum, player) => sum + player.times_as_liar, 0)) * 100)}%</p>
-            </div>
+        `;
+        rankingsList.appendChild(rankItem);
+    });
+
+    // Update award cards
+    const guesserCard = resultsDiv.querySelector('.award-card:nth-child(1) .award-content');
+    guesserCard.innerHTML = `
+        <div class="font-semibold">${results.awards.best_guesser.name}</div>
+        <div>${results.awards.best_guesser.correct_guesses} correct guesses</div>
+        <div class="text-sky-600">Success Rate: ${Math.round((results.stats[Object.keys(results.stats).find(id => 
+            results.stats[id].correct_guesses === results.awards.best_guesser.correct_guesses)].correct_guesses / 
+            results.stats[Object.keys(results.stats).find(id => 
+            results.stats[id].correct_guesses === results.awards.best_guesser.correct_guesses)].total_guesses) * 100)}%</div>
+    `;
+
+    const liarCard = resultsDiv.querySelector('.award-card:nth-child(2) .award-content');
+    liarCard.innerHTML = `
+        <div class="font-semibold">${results.awards.best_liar.name}</div>
+        <div>${results.awards.best_liar.successful_escapes} successful escapes</div>
+        <div class="text-sky-600">Survival Rate: ${Math.round((results.stats[Object.keys(results.stats).find(id => 
+            results.stats[id].times_survived === results.awards.best_liar.successful_escapes)].times_survived / 
+            results.stats[Object.keys(results.stats).find(id => 
+            results.stats[id].times_survived === results.awards.best_liar.successful_escapes)].times_as_liar) * 100)}%</div>
+    `;
+
+    const statsCard = resultsDiv.querySelector('.award-card:nth-child(3) .award-content');
+    statsCard.innerHTML = `
+        <div>Total Rounds: ${Object.values(results.stats)[0].rounds_played}</div>
+        <div>Total Lies Caught: ${Object.values(results.stats).reduce((sum, player) => sum + player.times_caught, 0)}</div>
+        <div>Total Successful Escapes: ${Object.values(results.stats).reduce((sum, player) => sum + player.times_survived, 0)}</div>
+        <div class="text-sky-600 mt-2">
+            Overall Guesser Success: ${Math.round((Object.values(results.stats).reduce((sum, player) => sum + player.correct_guesses, 0) / 
+                Object.values(results.stats).reduce((sum, player) => sum + player.total_guesses, 0)) * 100)}%
+        </div>
+        <div class="text-sky-600">
+            Overall Liar Survival: ${Math.round((Object.values(results.stats).reduce((sum, player) => sum + player.times_survived, 0) / 
+                Object.values(results.stats).reduce((sum, player) => sum + player.times_as_liar, 0)) * 100)}%
         </div>
     `;
 });
 
-function getRankEmoji(rank) {
-    switch(rank) {
-        case 1: return '🥇';
-        case 2: return '🥈';
-        case 3: return '🥉';
-        default: return '🎮';
-    }
-}
+// Play again in same room
+document.getElementById('play-again-same-room').addEventListener('click', () => {
+    socket.emit('restart_game', { room_code: roomCode });
+});
 
-// Play again
-document.getElementById('play-again').addEventListener('click', () => {
+// Back to home
+document.getElementById('back-to-home').addEventListener('click', () => {
     window.location.reload();
+});
+
+// Handle game restart
+socket.on('game_restarting', () => {
+    // Show message in game over screen
+    const resultsDiv = document.getElementById('final-results');
+    const restartMessage = document.createElement('div');
+    restartMessage.className = 'text-2xl font-bold text-sky-600 text-center mt-4';
+    restartMessage.textContent = 'Game restarting...';
+    resultsDiv.appendChild(restartMessage);
+});
+
+socket.on('game_restarted', () => {
+    // Reset game state
+    gameOver.style.display = 'none';
+    waitingRoom.style.display = 'block';
+    
+    // Clear previous game messages
+    document.getElementById('game-messages').innerHTML = '';
+    
+    // Reset any game-specific state variables
+    bonusMessageShown = false;
+    
+    // Update waiting room display
+    document.getElementById('room-code-display').textContent = roomCode;
+    
+    // Clear and reset players list
+    const playersList = document.getElementById('players-list');
+    playersList.innerHTML = '';
+    
+    // If host, show start game button
+    if (isHost) {
+        document.getElementById('start-game').style.display = 'block';
+    }
+});
+
+// Handle player rejoining for restart
+socket.on('player_rejoined', (data) => {
+    const playersList = document.getElementById('players-list');
+    
+    // Check if this player is already in the list
+    const existingPlayer = playersList.querySelector(`[data-player-id="${data.player.id}"]`);
+    if (!existingPlayer) {
+        const playerItem = document.createElement('div');
+        playerItem.className = 'player-item';
+        playerItem.setAttribute('data-player-id', data.player.id);
+        playerItem.textContent = `${data.player.name} rejoined the game`;
+        playersList.appendChild(playerItem);
+    }
 });
 
 // Add CSS for the new color classes

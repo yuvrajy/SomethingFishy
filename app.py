@@ -29,7 +29,8 @@ socketio = SocketIO(app,
                    ping_timeout=60,
                    ping_interval=25,
                    logger=True,
-                   engineio_logger=True)
+                   engineio_logger=True,
+                   path='/socket.io')
 
 # Store active game rooms
 game_rooms = {}
@@ -92,15 +93,19 @@ def join_game_room(room_code):
 @socketio.on('connect')
 def handle_connect():
     """Handle client connection"""
+    print(f"Client connected: {request.sid}")
     emit('connected', {'message': 'Connected to server'})
 
 @socketio.on('disconnect')
 def handle_disconnect():
     """Handle client disconnection"""
+    print(f"Client disconnected: {request.sid}")
     if request.sid in player_sessions:
         player_id = player_sessions[request.sid]['player_id']
         room_code = player_sessions[request.sid]['room_code']
         player_name = player_sessions[request.sid]['name']
+        
+        print(f"Disconnected player info - ID: {player_id}, Name: {player_name}, Room: {room_code}")
         
         if room_code in game_rooms:
             game_room = game_rooms[room_code]
@@ -121,6 +126,7 @@ def handle_disconnect():
             
             # Check if we should pause/end the game due to disconnections
             connected_players = [p for p in game_room.players.values() if not getattr(p, 'is_disconnected', False)]
+            print(f"Connected players after disconnect: {len(connected_players)}")
             
             if len(connected_players) < 3 and game_room.game_state['status'] == 'playing':
                 # Pause the game if too few players remain
@@ -289,16 +295,23 @@ def handle_join_game(data):
 @socketio.on('start_game')
 def handle_start_game(data):
     """Handle game start request"""
+    print(f"Received start_game event with data: {data}")
     room_code = data.get('room_code')
+    
     if room_code not in game_rooms:
+        print(f"Room {room_code} not found")
         emit('error', {'message': 'Room not found'})
         return
     
     game_room = game_rooms[room_code]
+    print(f"Number of players in room: {len(game_room.players)}")
+    
     if len(game_room.players) < 3:
+        print(f"Not enough players to start game: {len(game_room.players)}")
         emit('error', {'message': 'Need at least 3 players to start'})
         return
     
+    print("Starting game...")
     # Start the game
     game_room.start_game()
     
@@ -306,7 +319,11 @@ def handle_start_game(data):
     for player_id in game_room.players:
         state = game_room.get_player_state(player_id)
         state['player_id'] = player_id  # Add player's own ID to state
-        emit('game_started', state, room=get_player_sid(player_id, room_code))
+        player_sid = get_player_sid(player_id, room_code)
+        print(f"Sending game_started event to player {player_id} (SID: {player_sid})")
+        emit('game_started', state, room=player_sid)
+    
+    print("Game started successfully")
 
 @socketio.on('make_guess')
 def handle_guess(data):
@@ -364,22 +381,41 @@ def handle_guess(data):
 
 @socketio.on('skip_question')
 def handle_skip_question(data):
-    """Handle skipping to a new question"""
+    """Handle skipping the current question"""
     room_code = data.get('room_code')
     if room_code not in game_rooms:
-        emit('error', {'message': 'Room not found'})
         return
     
     game_room = game_rooms[room_code]
     result = game_room.skip_question()
+    emit('question_skipped', result, room=room_code)
+
+@socketio.on('restart_game')
+def handle_restart_game(data):
+    """Handle restarting the game in the same room"""
+    room_code = data.get('room_code')
+    if room_code not in game_rooms:
+        return
     
-    # Send new question to all players
+    game_room = game_rooms[room_code]
+    
+    # Notify all players that game is restarting
+    emit('game_restarting', room=room_code)
+    
+    # Reset room state but keep players
+    game_room.reset_for_restart()
+    
+    # Notify all players that game has restarted
     for player_id in game_room.players:
-        state = {
-            'question': result['question'],
-            'answer': result['answer'] if not game_room.players[player_id].is_guesser() else None
-        }
-        emit('question_skipped', state, room=get_player_sid(player_id, room_code))
+        player = game_room.players[player_id]
+        emit('player_rejoined', {
+            'player': {
+                'id': player_id,
+                'name': player.name
+            }
+        }, room=room_code)
+    
+    emit('game_restarted', room=room_code)
 
 def get_player_sid(player_id, room_code):
     """Get socket ID for a player"""
