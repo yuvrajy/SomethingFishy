@@ -4,13 +4,14 @@ from flask_cors import CORS
 from main import Player, GameRoom
 import random
 import string
+import os
 from gevent import monkey, sleep
 import time
 import threading
 monkey.patch_all()
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
-app.config['SECRET_KEY'] = 'something_fishy_secret!'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 
 # Configure CORS to only allow specific domains
 allowed_origins = [
