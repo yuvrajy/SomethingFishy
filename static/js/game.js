@@ -530,20 +530,24 @@ function updateGameState(state) {
 // Handle guess results
 socket.on("guess_result", (result) => {
   const message = document.createElement("div");
-  message.className = "message guess-result";
+
+  // Set color and text based on whether it was the truth-teller
+  if (result.was_truth_teller) {
+    message.className = "message wrong-guess";
+    message.textContent = `${result.guessed_player} was the Truth-teller! Round Over!`;
+  } else {
+    message.className = "message correct-liar";
+    message.textContent = `${result.guessed_player} was a Liar! +${result.points_earned} point${result.points_earned !== 1 ? "s" : ""}`;
+  }
 
   // Find the guessed player's item and apply the appropriate color
   const playerItems = document.querySelectorAll(".player-item");
 
   playerItems.forEach((item) => {
     if (item.textContent.includes(result.guessed_player)) {
-      // Remove any existing guess classes
       item.classList.remove("correct-guess", "truth-teller-guess");
-      // Add appropriate class based on whether it was the truth-teller
       if (result.was_truth_teller) {
         item.classList.add("truth-teller-guess");
-        message.textContent = `${result.guessed_player} was the Truth-teller! Round Over!`;
-        // Disable all guess buttons
         const buttons = document.querySelectorAll(".player-item button");
         buttons.forEach((button) => {
           button.disabled = true;
@@ -551,8 +555,6 @@ socket.on("guess_result", (result) => {
         });
       } else {
         item.classList.add("correct-guess");
-        message.textContent = `${result.guessed_player} was a Liar! +${result.points_earned} point${result.points_earned !== 1 ? "s" : ""}`;
-        // If all liars found, announce it (only once per round)
         if (result.found_all_liars && !bonusMessageShown) {
           const bonusMessage = document.createElement("div");
           bonusMessage.className = "message system";
@@ -569,23 +571,13 @@ socket.on("guess_result", (result) => {
   document.getElementById("game-messages").appendChild(message);
 });
 
-// Handle round ending notification
-socket.on("round_ending", () => {
-  // Add a temporary message about waiting for next round
-  const waitingMessage = document.createElement("div");
-  waitingMessage.className = "message system";
-  waitingMessage.textContent = "Waiting for next round...";
-  document.getElementById("game-messages").appendChild(waitingMessage);
-
-  // Clear the message after 1 second
-  setTimeout(() => {
-    waitingMessage.remove();
-  }, 1000);
-});
-
 // Handle new round state updates
 socket.on("new_round", (state) => {
   bonusMessageShown = false; // Reset bonus message flag for new round
+
+  // Clear previous round's chat messages
+  document.getElementById("game-messages").innerHTML = "";
+
   // Add next guesser announcement
   addGameMessage(
     `The new guesser is: ${state.next_guesser}`,

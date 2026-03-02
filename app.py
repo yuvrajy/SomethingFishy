@@ -1,3 +1,6 @@
+from dotenv import load_dotenv
+load_dotenv()  # Must run before any os.environ.get() calls
+
 from flask import Flask, jsonify, render_template, request
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from flask_cors import CORS
@@ -8,13 +11,14 @@ import os
 from gevent import monkey, sleep
 import time
 import threading
-from dotenv import load_dotenv
 monkey.patch_all()
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 
 # Configure CORS to only allow specific domains
+# Add extra origins via ALLOWED_ORIGINS env var (comma-separated)
+_extra_origins = [o.strip() for o in os.environ.get('ALLOWED_ORIGINS', '').split(',') if o.strip()]
 allowed_origins = [
     "https://superfishy.com",
     "https://www.superfishy.com",
@@ -24,16 +28,17 @@ allowed_origins = [
     "http://127.0.0.1:5000",
     "http://127.0.0.1:5001",
     "http://127.0.0.1:5003"
-]
+] + _extra_origins
 
 CORS(app, resources={r"/*": {"origins": allowed_origins}})
+_debug_logging = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
 socketio = SocketIO(app,
                    cors_allowed_origins=allowed_origins,
                    async_mode='gevent',
                    ping_timeout=60,
                    ping_interval=25,
-                   logger=True,
-                   engineio_logger=True,
+                   logger=_debug_logging,
+                   engineio_logger=_debug_logging,
                    path='/socket.io')
 
 # Store active game rooms
@@ -339,8 +344,16 @@ def handle_guess(data):
         emit('error', {'message': 'Room not found'})
         return
 
+    if request.sid not in player_sessions:
+        emit('error', {'message': 'Session not found. Please rejoin.'})
+        return
+
     game_room = game_rooms[room_code]
     guesser_id = player_sessions[request.sid]['player_id']
+
+    if guessed_player_id not in game_room.players:
+        emit('error', {'message': 'Invalid player selected'})
+        return
 
     # Process the guess
     result = game_room.process_guess(guesser_id, guessed_player_id)
@@ -359,8 +372,8 @@ def handle_guess(data):
             final_results = game_room.get_final_results()
             emit('game_over', final_results, to=room_code)
         else:
-            # Wait for 1.5 seconds to let the animation complete
-            sleep(1.5)
+            # Wait for 4 seconds so players can read the round result
+            sleep(4)
 
             # end_round() already calls start_new_round(), so we don't need to call it again
             # The round was already ended in process_guess -> end_round()
@@ -457,6 +470,6 @@ def get_room_status(room_code):
     })
 
 if __name__ == '__main__':
-    load_dotenv()
     port = int(os.environ.get('PORT', 5003))
-    socketio.run(app, host='0.0.0.0', port=port, debug=True)
+    debug = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
+    socketio.run(app, host='0.0.0.0', port=port, debug=debug)

@@ -1,5 +1,4 @@
 import random
-from flask_socketio import emit
 
 class Player:
     def __init__(self, id, name, is_guesser=False):
@@ -259,7 +258,7 @@ class GameRoom:
     
     def get_new_qa(self):
         """Get a new question-answer pair, ensuring no repeats in the same game"""
-        with open('questions.txt', 'r', encoding='utf-8') as file:
+        with open('Questions.txt', 'r', encoding='utf-8') as file:
             # Read all lines and remove empty ones
             lines = [line.strip() for line in file.readlines() if line.strip()]
             
@@ -399,6 +398,7 @@ class GameRoom:
     
     def reset_for_restart(self):
         """Reset the room state but keep players"""
+        self.used_questions = set()
         self.game_state = {
             'status': 'waiting',
             'current_round': 0,
@@ -410,30 +410,17 @@ class GameRoom:
             'scores': {}
         }
         for player in self.players.values():
-            player.reset_round()
+            player.points = 0
+            player.temp_points = 0
+            player.has_been_guessed = False
+            player.times_as_guesser = 0
+            player.times_as_truth_teller = 0
+            player.times_as_liar = 0
+            player.correct_guesses = 0
+            player.total_guesses = 0
+            player.times_caught_as_liar = 0
+            player.times_survived_as_liar = 0
+            player.rounds_played = 0
+            player.role = 'liar'
+            self.game_state['scores'][player.id] = 0
 
-def handle_restart_game(data):
-    room_code = data['room_code']
-    if room_code not in rooms:
-        return
-    
-    room = rooms[room_code]
-    
-    # Notify all players that game is restarting
-    emit('game_restarting', room=room_code)
-    
-    # Reset room state but keep players
-    room.reset_for_restart()
-    
-    # Notify all players that game has restarted
-    for player_id in room.players:
-        player = room.players[player_id]
-        emit('player_rejoined', {
-            'player': {
-                'id': player_id,
-                'name': player.name
-            }
-        }, room=room_code)
-    
-    emit('game_restarted', room=room_code)
-    
