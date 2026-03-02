@@ -221,7 +221,7 @@
 
     <!-- Game Section -->
     <div id="game-section" class="fixed inset-0 bg-sky-50 z-20 p-6">
-        <div class="max-w-6xl mx-auto h-full flex flex-col">
+        <div class="max-w-6xl mx-auto h-full flex flex-col overflow-y-auto">
             <div id="room-code-corner" class="absolute top-4 right-4 bg-sky-100 px-4 py-2 rounded-full text-sky-700 text-lg"></div>
             <div class="grid grid-cols-1 md:grid-cols-3 gap-6 flex-grow">
                 <div class="md:col-span-2 space-y-6">
@@ -229,12 +229,12 @@
                         <div class="space-y-4">
                             <p class="text-3xl font-bold text-sky-600">Your Role: <span id="player-role" class="capitalize-first"></span></p>
                             <p class="text-2xl mt-6">Question: <span id="question" class="font-medium"></span></p>
-                            <p id="answer-section" class="text-2xl mt-4" style="display: none;">Answer: <span id="answer" class="font-medium"></span></p>
+                            <p id="answer-section" class="text-2xl mt-4" style="display: none;">Correct Answer: <span id="answer" class="font-medium"></span></p>
                         </div>
                     </div>
                     <div id="game-messages" class="bg-white rounded-lg shadow-lg p-6 h-[calc(100vh-400px)] overflow-y-auto"></div>
                 </div>
-                <div class="bg-white rounded-lg shadow-lg p-8 h-full overflow-y-auto">
+                <div class="bg-white rounded-lg shadow-lg p-8 overflow-y-auto max-h-[40vh] md:max-h-none md:h-full">
                     <h3 class="text-2xl font-bold text-sky-600 mb-6">Who do you think is lying?</h3>
                     <div id="players-game-list" class="space-y-4"></div>
                 </div>

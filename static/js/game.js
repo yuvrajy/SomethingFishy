@@ -404,12 +404,11 @@ socket.on("game_started", (state) => {
 
 // Update game state
 socket.on("game_state_update", updateGameState);
-socket.on("new_round", updateGameState);
 
 function updateGameState(state) {
   // Find my player info
   const myPlayer = state.players[myPlayerId];
-  if (!myPlayer) return;
+  if (!myPlayer || !myPlayer.role) return;
 
   // Update role with simple description
   const roleSection = document.getElementById("game-info");
@@ -419,14 +418,21 @@ function updateGameState(state) {
   const roleContainer = document.createElement("div");
   roleContainer.className = "space-y-4";
 
+  const roleColor =
+    myPlayer.role === "liar"
+      ? "text-red-600"
+      : myPlayer.role === "truth-teller"
+        ? "text-green-600"
+        : "text-sky-600";
+
   const roleElem = document.createElement("p");
-  roleElem.className = "text-3xl font-bold text-sky-600";
+  roleElem.className = `text-3xl font-bold ${roleColor}`;
   roleElem.innerHTML = `Your Role: <span class="capitalize-first">${myPlayer.role}</span>`;
   roleContainer.appendChild(roleElem);
 
   // Add hint section under role
   const hintSection = document.createElement("div");
-  hintSection.className = "text-xl text-gray-600 mt-2";
+  hintSection.className = `text-xl font-semibold mt-2 ${roleColor}`;
   if (myPlayer.role === "guesser") {
     hintSection.textContent =
       "Try to figure out who's lying by asking questions and observing responses.";
@@ -443,15 +449,27 @@ function updateGameState(state) {
   if (state.question) {
     const questionElem = document.createElement("p");
     questionElem.className = "text-2xl mt-6";
-    questionElem.innerHTML = `Question: <span class="font-medium">${state.question}</span>`;
+    questionElem.innerHTML = `Question: <span id="current-question-text" class="font-medium">${state.question}</span>`;
     roleContainer.appendChild(questionElem);
 
+    // Skip button — only visible to the guesser
+    if (myPlayer.role === "guesser") {
+      const skipButton = document.createElement("button");
+      skipButton.id = "skip-question-btn";
+      skipButton.className = "btn-fishy mt-4 text-base px-6 py-2";
+      skipButton.textContent = "Skip Question";
+      skipButton.onclick = () => {
+        skipButton.disabled = true;
+        socket.emit("skip_question", { room_code: roomCode });
+      };
+      roleContainer.appendChild(skipButton);
+    }
   }
 
   if (myPlayer.role !== "guesser" && state.answer) {
     const answerSection = document.createElement("p");
     answerSection.className = "text-2xl mt-4";
-    answerSection.innerHTML = `Answer: <span class="font-medium">${state.answer}</span>`;
+    answerSection.innerHTML = `Correct Answer: <span id="current-answer-text" class="font-medium">${state.answer}</span>`;
     roleContainer.appendChild(answerSection);
   }
 
@@ -538,33 +556,25 @@ socket.on("guess_result", (result) => {
     message.textContent = `${result.guessed_player} was a Liar! +${result.points_earned} point${result.points_earned !== 1 ? "s" : ""}`;
   }
 
-  // Find the guessed player's item and apply the appropriate color
-  const playerItems = document.querySelectorAll(".player-item");
+  // Show bonus message if all liars were found
+  if (result.found_all_liars && !bonusMessageShown) {
+    const bonusMessage = document.createElement("div");
+    bonusMessage.className = "message system";
+    bonusMessage.textContent = "You found all the liars! Bonus point awarded!";
+    document.getElementById("game-messages").appendChild(bonusMessage);
+    bonusMessageShown = true;
+  }
 
-  playerItems.forEach((item) => {
-    if (item.textContent.includes(result.guessed_player)) {
-      item.classList.remove("correct-guess", "truth-teller-guess");
-      if (result.was_truth_teller) {
-        item.classList.add("truth-teller-guess");
-        const buttons = document.querySelectorAll(".player-item button");
-        buttons.forEach((button) => {
-          button.disabled = true;
-          button.style.display = "none";
-        });
-      } else {
-        item.classList.add("correct-guess");
-        if (result.found_all_liars && !bonusMessageShown) {
-          const bonusMessage = document.createElement("div");
-          bonusMessage.className = "message system";
-          bonusMessage.textContent =
-            "You found all the liars! Bonus point awarded!";
-          document.getElementById("game-messages").appendChild(bonusMessage);
-          bonusMessageShown = true;
-        }
-      }
-      item.classList.add("guessed");
+  // Re-enable remaining guess buttons if the round isn't over
+  // (safety net in case game_state_update is delayed or lost)
+  if (!result.was_truth_teller && !result.round_ended) {
+    const gameList = document.getElementById("players-game-list");
+    if (gameList) {
+      gameList.querySelectorAll("button").forEach((btn) => {
+        btn.disabled = false;
+      });
     }
-  });
+  }
 
   document.getElementById("game-messages").appendChild(message);
 });
@@ -584,6 +594,26 @@ socket.on("new_round", (state) => {
 
   // Update the game state with the new round info
   updateGameState(state);
+});
+
+// Handle question skip
+socket.on("question_skipped", (result) => {
+  // Update the question text for everyone
+  const questionElem = document.getElementById("current-question-text");
+  if (questionElem) {
+    questionElem.textContent = result.question;
+  }
+  // Update the answer text (only non-guessers have this element)
+  const answerElem = document.getElementById("current-answer-text");
+  if (answerElem) {
+    answerElem.textContent = result.answer;
+  }
+  // Re-enable skip button for the guesser
+  const skipBtn = document.getElementById("skip-question-btn");
+  if (skipBtn) {
+    skipBtn.disabled = false;
+  }
+  addGameMessage("Question skipped! New question is ready.", "system");
 });
 
 // Game over
