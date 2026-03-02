@@ -409,6 +409,56 @@ def handle_guess(data):
             state['current_round'] = game_room.game_state['current_round']
             emit('game_state_update', state, to=get_player_sid(player_id, room_code))
 
+@socketio.on('end_turn')
+def handle_end_turn(data):
+    """Handle the guesser choosing to end their turn early"""
+    room_code = data.get('room_code')
+
+    if room_code not in game_rooms:
+        emit('error', {'message': 'Room not found'})
+        return
+
+    if request.sid not in player_sessions:
+        emit('error', {'message': 'Session not found. Please rejoin.'})
+        return
+
+    game_room = game_rooms[room_code]
+    guesser_id = player_sessions[request.sid]['player_id']
+    guesser = game_room.players.get(guesser_id)
+
+    if not guesser or not guesser.is_guesser():
+        emit('error', {'message': 'Only the current guesser can end the turn'})
+        return
+
+    if game_room.game_state['status'] != 'playing':
+        emit('error', {'message': 'Game is not in progress'})
+        return
+
+    guesser_name = guesser.name
+    points_kept = guesser.temp_points  # capture before end_turn_early resets it
+
+    result = game_room.end_turn_early()
+
+    # Notify everyone about the early end
+    emit('turn_ended_early', {
+        'guesser_name': guesser_name,
+        'points_kept': points_kept,
+    }, to=room_code)
+
+    if result is not None:
+        # Someone hit 20 points — game over
+        emit('game_over', result, to=room_code)
+    else:
+        sleep(4)
+        current_guesser = next(p for p in game_room.players.values() if p.is_guesser())
+        for player_id in game_room.players:
+            state = game_room.get_player_state(player_id)
+            state['player_id'] = player_id
+            state['current_round'] = game_room.game_state['current_round']
+            state['next_guesser'] = current_guesser.name
+            emit('new_round', state, to=get_player_sid(player_id, room_code))
+
+
 @socketio.on('skip_question')
 def handle_skip_question(data):
     """Handle skipping the current question"""

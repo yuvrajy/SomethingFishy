@@ -256,6 +256,33 @@ class GameRoom:
         self.start_new_round()
         return None
     
+    def end_turn_early(self):
+        """Guesser ends their turn early, keeping accumulated points.
+        Truth-teller and remaining unguessed liars each get 1 point."""
+        guesser = next(p for p in self.players.values() if p.is_guesser())
+
+        # Guesser keeps their accumulated temp points
+        guesser.add_points(guesser.temp_points)
+
+        # Truth-teller gets a point for surviving the round
+        truth_teller = next((p for p in self.players.values() if p.is_truth_teller()), None)
+        if truth_teller:
+            truth_teller.add_points(1)
+
+        # Each unguessed liar gets a survival point
+        for player in self.players.values():
+            if not player.has_been_guessed and player.is_liar():
+                player.add_points(1)
+                player.times_survived_as_liar += 1
+
+        self.update_scores()
+        if any(p.get_points() >= 20 for p in self.players.values()):
+            self.game_state['status'] = 'finished'
+            return self.get_final_results()
+
+        self.start_new_round()
+        return None
+
     def get_new_qa(self):
         """Get a new question-answer pair, ensuring no repeats in the same game"""
         with open('Questions.txt', 'r', encoding='utf-8') as file:
@@ -375,8 +402,11 @@ class GameRoom:
         
         # Add the player's own role
         state['players'][player_id]['role'] = player.role
-        
-        return state 
+
+        # Expose accumulated temp_points so the guesser can see their pending score
+        state['temp_points'] = player.temp_points
+
+        return state
     
     def skip_question(self):
         """Skip the current question and get a new one"""

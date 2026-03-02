@@ -621,6 +621,24 @@ function updateGameState(state) {
     playersList.appendChild(playerItem);
   });
 
+  // End Turn Early button — only for the guesser
+  if (myPlayer.role === "guesser") {
+    const endTurnBtn = document.createElement("button");
+    endTurnBtn.id = "end-turn-btn";
+    const pts = state.temp_points || 0;
+    endTurnBtn.className =
+      "btn-fishy w-full mt-6 bg-amber-400 border-amber-500 text-gray-900";
+    endTurnBtn.textContent =
+      pts > 0
+        ? `End Turn Early (Keep ${pts} pt${pts !== 1 ? "s" : ""})`
+        : "End Turn Early";
+    endTurnBtn.onclick = () => {
+      endTurnBtn.disabled = true;
+      socket.emit("end_turn", { room_code: roomCode });
+    };
+    playersList.appendChild(endTurnBtn);
+  }
+
   // Only announce next guesser when it's a new round
   if (state.new_round && state.next_guesser) {
     addGameMessage(
@@ -664,6 +682,16 @@ socket.on("guess_result", (result) => {
   }
 
   document.getElementById("game-messages").appendChild(message);
+});
+
+// Handle guesser ending turn early
+socket.on("turn_ended_early", (data) => {
+  const pts = data.points_kept;
+  const ptText = pts > 0 ? ` keeping ${pts} point${pts !== 1 ? "s" : ""}` : "";
+  addGameMessage(
+    `${data.guesser_name} ended their turn early${ptText}. The truth-teller survived!`,
+    "system",
+  );
 });
 
 // Handle new round state updates
@@ -824,6 +852,14 @@ document.getElementById("back-to-home").addEventListener("click", () => {
   window.location.reload();
 });
 
+// Play Again — reset room state and return to waiting room
+document.getElementById("play-again-btn").addEventListener("click", () => {
+  const btn = document.getElementById("play-again-btn");
+  btn.disabled = true;
+  btn.textContent = "Restarting…";
+  socket.emit("restart_game", { room_code: roomCode });
+});
+
 // Handle game restart
 socket.on("game_restarting", () => {
   // Show message in game over screen
@@ -852,10 +888,15 @@ socket.on("game_restarted", () => {
   const playersList = document.getElementById("players-list");
   playersList.innerHTML = "";
 
-  // If host, show start game button
-  if (isHost) {
-    document.getElementById("start-game").style.display = "block";
+  // Re-enable the Play Again button for next time
+  const playAgainBtn = document.getElementById("play-again-btn");
+  if (playAgainBtn) {
+    playAgainBtn.disabled = false;
+    playAgainBtn.textContent = "Play Again";
   }
+
+  // After a restart anyone in the room can start the next game
+  document.getElementById("start-game").style.display = "block";
 });
 
 // Handle player rejoining for restart
