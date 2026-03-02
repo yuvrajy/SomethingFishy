@@ -689,7 +689,7 @@ socket.on("turn_ended_early", (data) => {
   const pts = data.points_kept;
   const ptText = pts > 0 ? ` keeping ${pts} point${pts !== 1 ? "s" : ""}` : "";
   addGameMessage(
-    `${data.guesser_name} ended their turn early${ptText}. The truth-teller survived!`,
+    `${data.guesser_name} ended their turn early${ptText}. Unguessed liars each got a point!`,
     "system",
   );
 });

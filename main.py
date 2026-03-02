@@ -258,16 +258,11 @@ class GameRoom:
     
     def end_turn_early(self):
         """Guesser ends their turn early, keeping accumulated points.
-        Truth-teller and remaining unguessed liars each get 1 point."""
+        Remaining unguessed liars each get 1 point."""
         guesser = next(p for p in self.players.values() if p.is_guesser())
 
         # Guesser keeps their accumulated temp points
         guesser.add_points(guesser.temp_points)
-
-        # Truth-teller gets a point for surviving the round
-        truth_teller = next((p for p in self.players.values() if p.is_truth_teller()), None)
-        if truth_teller:
-            truth_teller.add_points(1)
 
         # Each unguessed liar gets a survival point
         for player in self.players.values():
