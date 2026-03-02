@@ -8,6 +8,7 @@ from main import Player, GameRoom
 import random
 import string
 import os
+import secrets
 from gevent import monkey, sleep
 import time
 import threading
@@ -35,16 +36,18 @@ _debug_logging = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
 socketio = SocketIO(app,
                    cors_allowed_origins=allowed_origins,
                    async_mode='gevent',
-                   ping_timeout=60,
-                   ping_interval=25,
+                   ping_timeout=20,
+                   ping_interval=10,
                    logger=_debug_logging,
                    engineio_logger=_debug_logging,
                    path='/socket.io')
 
 # Store active game rooms
 game_rooms = {}
-# Store player session mappings
+# Store player session mappings: SID -> {player_id, room_code, name}
 player_sessions = {}
+# Store persistent session tokens: token -> {player_id, room_code, name}
+player_tokens = {}
 
 def generate_room_code():
     """Generate a unique 6-letter room code, excluding confusing letters (O, I)"""
@@ -217,6 +220,11 @@ def handle_join_game(data):
             'name': player_name
         }
 
+        # Issue a persistent session token so the client can rejoin after reconnects
+        token = secrets.token_hex(16)
+        player_tokens[token] = {'player_id': player_id, 'room_code': room_code, 'name': player_name}
+        emit('session_token', {'token': token})
+
         # Join socket room
         join_room(room_code)
 
@@ -278,6 +286,11 @@ def handle_join_game(data):
             'room_code': room_code,
             'name': player_name
         }
+
+        # Issue a persistent session token so the client can rejoin after reconnects
+        token = secrets.token_hex(16)
+        player_tokens[token] = {'player_id': player_id, 'room_code': room_code, 'name': player_name}
+        emit('session_token', {'token': token})
 
         # Join socket room
         join_room(room_code)
@@ -406,6 +419,81 @@ def handle_skip_question(data):
     game_room = game_rooms[room_code]
     result = game_room.skip_question()
     emit('question_skipped', result, to=room_code)
+
+@socketio.on('rejoin_game')
+def handle_rejoin_game(data):
+    """Handle a client rejoining using a persistent session token"""
+    token = data.get('token')
+    if not token or token not in player_tokens:
+        emit('rejoin_failed', {'message': 'Session expired. Please rejoin manually.'})
+        return
+
+    session = player_tokens[token]
+    player_id = session['player_id']
+    room_code = session['room_code']
+    player_name = session['name']
+
+    if room_code not in game_rooms:
+        del player_tokens[token]
+        emit('rejoin_failed', {'message': 'Room no longer exists.'})
+        return
+
+    game_room = game_rooms[room_code]
+    if player_id not in game_room.players:
+        del player_tokens[token]
+        emit('rejoin_failed', {'message': 'Player not found in room.'})
+        return
+
+    player = game_room.players[player_id]
+
+    # Remove any stale SID mapping for this player
+    for sid in list(player_sessions.keys()):
+        if player_sessions[sid]['player_id'] == player_id and player_sessions[sid]['room_code'] == room_code:
+            del player_sessions[sid]
+            break
+
+    # Register the new SID
+    player_sessions[request.sid] = {'player_id': player_id, 'room_code': room_code, 'name': player_name}
+
+    # Refresh the token so the client has a valid one going forward
+    new_token = secrets.token_hex(16)
+    player_tokens[new_token] = session
+    del player_tokens[token]
+    emit('session_token', {'token': new_token})
+
+    # Mark player as reconnected
+    player.is_disconnected = False
+    player.disconnect_time = None
+
+    join_room(room_code)
+
+    emit('player_reconnected', {
+        'player_id': player_id,
+        'player_name': player_name,
+        'message': f'{player_name} has reconnected'
+    }, room=room_code)
+
+    # Resume game if enough players are back
+    connected_players = [p for p in game_room.players.values() if not getattr(p, 'is_disconnected', False)]
+    if len(connected_players) >= 3 and game_room.game_state['status'] == 'paused':
+        game_room.game_state['status'] = 'playing'
+        emit('game_resumed', {'message': 'Game resumed!'}, room=room_code)
+
+    # Send the current state back to the rejoining player
+    state = game_room.get_player_state(player_id)
+    state['player_id'] = player_id
+    state['current_round'] = game_room.game_state['current_round']
+
+    if game_room.game_state['status'] in ['playing', 'paused']:
+        emit('game_started', state)
+    else:
+        # Still in waiting room — send current player list
+        emit('rejoined_waiting', {
+            'player_id': player_id,
+            'room_code': room_code,
+            'players': [p.to_dict() for p in game_room.players.values()]
+        })
+
 
 @socketio.on('restart_game')
 def handle_restart_game(data):

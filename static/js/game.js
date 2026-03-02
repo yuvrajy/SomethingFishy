@@ -67,19 +67,90 @@ window.addEventListener("click", (event) => {
   }
 });
 
-// Connection handling
+// --- Reconnect banner helpers ---
+function showReconnectingBanner() {
+  let banner = document.getElementById("reconnect-banner");
+  if (!banner) {
+    banner = document.createElement("div");
+    banner.id = "reconnect-banner";
+    banner.style.cssText =
+      "position:fixed;top:0;left:0;right:0;background:#fbbf24;color:#1f2937;" +
+      "text-align:center;padding:10px;z-index:99999;font-size:1rem;font-weight:bold;";
+    banner.textContent = "Connection lost — reconnecting…";
+    document.body.appendChild(banner);
+  }
+}
+
+function hideReconnectingBanner() {
+  const banner = document.getElementById("reconnect-banner");
+  if (banner) banner.remove();
+}
+
+// --- Connection handling ---
 socket.on("connect", () => {
   console.log("Connected to server with ID:", socket.id);
+  hideReconnectingBanner();
 });
 
 socket.on("connect_error", (error) => {
   console.error("Connection error:", error);
-  alert("Error connecting to server. Please try again.");
+  showReconnectingBanner();
 });
 
-socket.on("disconnect", () => {
-  console.log("Disconnected from server");
-  alert("Disconnected from server. Please refresh the page.");
+socket.on("disconnect", (reason) => {
+  console.log("Disconnected from server:", reason);
+  showReconnectingBanner();
+});
+
+// Auto-rejoin using stored session token when Socket.IO reconnects
+socket.on("reconnect", () => {
+  console.log("Socket.IO reconnected with new SID:", socket.id);
+  const token = localStorage.getItem("fishyToken");
+  if (token && roomCode) {
+    socket.emit("rejoin_game", { token });
+  } else {
+    hideReconnectingBanner();
+  }
+});
+
+socket.on("reconnect_failed", () => {
+  localStorage.removeItem("fishyToken");
+  alert("Could not reconnect after multiple attempts. Please refresh the page.");
+});
+
+// Server issued (or refreshed) a session token — persist it
+socket.on("session_token", (data) => {
+  localStorage.setItem("fishyToken", data.token);
+});
+
+// Token-based rejoin failed — clear stale token and let user rejoin manually
+socket.on("rejoin_failed", (data) => {
+  console.warn("Rejoin failed:", data.message);
+  localStorage.removeItem("fishyToken");
+  hideReconnectingBanner();
+  alert(`Reconnection failed: ${data.message}\nPlease re-enter your name and room code.`);
+  window.location.reload();
+});
+
+// Rejoined during waiting room — repopulate the player list
+socket.on("rejoined_waiting", (data) => {
+  hideReconnectingBanner();
+  myPlayerId = data.player_id;
+  waitingRoom.style.display = "block";
+  gameSection.style.display = "none";
+  gameOver.style.display = "none";
+  landingButtons.style.display = "none";
+  document.getElementById("room-code-display").textContent = data.room_code;
+
+  const playersList = document.getElementById("players-list");
+  playersList.innerHTML = "";
+  data.players.forEach((p) => {
+    const item = document.createElement("div");
+    item.className = "player-item";
+    item.setAttribute("data-player-id", p.id);
+    item.textContent = `${p.name} is in the room`;
+    playersList.appendChild(item);
+  });
 });
 
 // Handle errors from server
@@ -329,6 +400,21 @@ socket.on("game_resumed", (data) => {
 
 // Initialize start game button event listener
 document.addEventListener("DOMContentLoaded", () => {
+  // On page load, try to restore a session from a previous tab/visit
+  const savedToken = localStorage.getItem("fishyToken");
+  if (savedToken) {
+    showReconnectingBanner();
+    landingButtons.style.display = "none";
+    // Wait for socket to connect, then attempt token-based rejoin
+    if (socket.connected) {
+      socket.emit("rejoin_game", { token: savedToken });
+    } else {
+      socket.once("connect", () => {
+        socket.emit("rejoin_game", { token: savedToken });
+      });
+    }
+  }
+
   const startButton = document.getElementById("start-game");
   if (startButton) {
     startButton.addEventListener("click", () => {
@@ -387,6 +473,7 @@ function addGameMessage(message, type = "info") {
 // Handle game started event
 socket.on("game_started", (state) => {
   console.log("Game started event received:", state);
+  hideReconnectingBanner();
   waitingRoom.style.display = "none";
   gameSection.style.display = "block";
   myPlayerId = state.player_id;
@@ -733,6 +820,7 @@ socket.on("game_over", (results) => {
 
 // Back to home
 document.getElementById("back-to-home").addEventListener("click", () => {
+  localStorage.removeItem("fishyToken");
   window.location.reload();
 });
 
