@@ -198,13 +198,13 @@ class GameRoom:
         }
         
         if guessed_player.is_truth_teller():
-            # Guessed truth-teller - lose points
+            # Guessed truth-teller - guesser loses points
             guesser.temp_points = 0
             guesser.total_guesses += 1
-            # Give truth-teller a point if they're not the last one guessed
-            if remaining_count >= 0:  # Changed from >= 1 to >= 0 to include second-to-last
-                guessed_player.add_points(1)
-                result['truth_teller_point'] = True
+            # Truth-teller earns one point per unguessed liar still hiding
+            if remaining_count > 0:
+                guessed_player.add_points(remaining_count)
+            result['truth_teller_points'] = remaining_count
             result['round_ended'] = True
             
             # Start new round since guessing truth-teller ends the round

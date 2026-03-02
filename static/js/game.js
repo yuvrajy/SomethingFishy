@@ -655,7 +655,9 @@ socket.on("guess_result", (result) => {
   // Set color and text based on whether it was the truth-teller
   if (result.was_truth_teller) {
     message.className = "message wrong-guess";
-    message.textContent = `${result.guessed_player} was the Truth-teller! Round Over!`;
+    const ttPts = result.truth_teller_points;
+    const ttPtText = ttPts > 0 ? ` (+${ttPts} point${ttPts !== 1 ? "s" : ""} to the truth-teller)` : "";
+    message.textContent = `${result.guessed_player} was the Truth-teller! Round Over!${ttPtText}`;
   } else {
     message.className = "message correct-liar";
     message.textContent = `${result.guessed_player} was a Liar! +${result.points_earned} point${result.points_earned !== 1 ? "s" : ""}`;
