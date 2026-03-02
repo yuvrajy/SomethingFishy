@@ -98,8 +98,9 @@ class GameRoom:
             player_ids = list(self.players.keys())
             self.players[player_ids[-1]].role = "guesser"
             
-            # Set initial truth-teller
-            non_guessers = [p for p in self.players.values() if not p.is_guesser()]
+            # Set initial truth-teller (only from connected players)
+            non_guessers = [p for p in self.players.values()
+                            if not p.is_guesser() and not getattr(p, 'is_disconnected', False)]
             truth_teller = random.choice(non_guessers)
             truth_teller.role = "truth-teller"
             
@@ -136,30 +137,36 @@ class GameRoom:
         # Find current guesser and their index
         current_guesser = next(p for p in self.players.values() if p.is_guesser())
         current_index = player_ids.index(current_guesser.id)
-        
+
         # Reset current guesser to liar
         current_guesser.role = "liar"
-        
-        # Set next player as guesser
+
+        # Set next *connected* player as guesser, skipping disconnected ones
         next_index = (current_index + 1) % len(player_ids)
+        for _ in range(len(player_ids)):
+            candidate = self.players[player_ids[next_index]]
+            if not getattr(candidate, 'is_disconnected', False):
+                break
+            next_index = (next_index + 1) % len(player_ids)
         next_guesser = self.players[player_ids[next_index]]
         next_guesser.role = "guesser"
         next_guesser.times_as_guesser += 1
-        
+
         # Reset all non-guessers to liars
         for player in self.players.values():
             if not player.is_guesser():
                 player.role = "liar"
                 player.rounds_played += 1
-        
-        # Pick random non-guesser to be truth-teller
-        non_guessers = [p for p in self.players.values() if not p.is_guesser()]
-        truth_teller = random.choice(non_guessers)
+
+        # Pick random *connected* non-guesser to be truth-teller
+        connected_non_guessers = [p for p in self.players.values()
+                                  if not p.is_guesser() and not getattr(p, 'is_disconnected', False)]
+        truth_teller = random.choice(connected_non_guessers)
         truth_teller.role = "truth-teller"
         truth_teller.times_as_truth_teller += 1
-        
-        # Update liar count for remaining players
-        for player in non_guessers:
+
+        # Update liar count for remaining connected players
+        for player in connected_non_guessers:
             if player.is_liar():
                 player.times_as_liar += 1
     
