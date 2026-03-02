@@ -846,11 +846,15 @@ socket.on("game_over", (results) => {
 });
 
 
-// Back to home
-document.getElementById("back-to-home").addEventListener("click", () => {
+// Back to home / leave buttons (all clear token and reload)
+function leaveToHome() {
   localStorage.removeItem("fishyToken");
   window.location.reload();
-});
+}
+
+document.getElementById("back-to-home").addEventListener("click", leaveToHome);
+document.getElementById("leave-waiting-room").addEventListener("click", leaveToHome);
+document.getElementById("leave-game-btn").addEventListener("click", leaveToHome);
 
 // Play Again — reset room state and return to waiting room
 document.getElementById("play-again-btn").addEventListener("click", () => {

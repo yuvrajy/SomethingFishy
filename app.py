@@ -147,8 +147,9 @@ def handle_disconnect():
                     'message': f"Game paused - need at least 3 players. Waiting for {player_name} to reconnect..."
                 }, to=room_code)
             elif len(connected_players) == 0:
-                # Schedule room cleanup if no one is connected
-                schedule_room_cleanup(room_code, 300)  # 5 minutes
+                # Waiting rooms clean up quickly; active/paused games wait longer for reconnects
+                delay = 15 if game_room.game_state['status'] == 'waiting' else 300
+                schedule_room_cleanup(room_code, delay)
 
         del player_sessions[request.sid]
 
