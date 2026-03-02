@@ -1,9 +1,7 @@
 // Connect to the Socket.IO server
 const socket = io({
-  transports: ["websocket"],
-  upgrade: false,
+  transports: ["polling", "websocket"],
   reconnection: true,
-  // Increase reconnection attempts for better resilience
   reconnectionAttempts: 20,
   reconnectionDelay: 1000,
   path: "/socket.io",
